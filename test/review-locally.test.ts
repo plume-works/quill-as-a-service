@@ -30,6 +30,18 @@ describe('where a review comment can go', () => {
     expect([...commentableLines(DIFF).get('old.md')!.LEFT]).toEqual([1]);
   });
 
+  test('counts a deleted line whose content starts with dashes', () => {
+    const diff = `diff --git a/doc.md b/doc.md
+--- a/doc.md
++++ b/doc.md
+@@ -1,3 +1,2 @@
+---
+-title: x
+ body
+`;
+    expect([...commentableLines(diff).get('doc.md')!.LEFT]).toEqual([1, 2, 3]);
+  });
+
   test('finds the comments GitHub would refuse', () => {
     const result: ReviewResult = {
       event: 'COMMENT',

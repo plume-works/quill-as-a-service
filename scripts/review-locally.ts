@@ -1,13 +1,6 @@
 #!/usr/bin/env bun
-/**
- * Run one live review of a pull request on this machine's Docker engine, the way the service
- * runs it, and check the result it writes instead of posting it.
- *
- *   bun scripts/review-locally.ts <owner/name> <number> [--image <ref>]
- *
- * CLAUDE_CODE_OAUTH_TOKEN is the Claude token the review runs on. GH_TOKEN is the token the
- * reviewer reads the pull request with; give it read access only, as the service does.
- */
+/** Run one live review of a pull request the way the service does, and check its result
+ * instead of posting it. README.md#trying-a-review-locally gives the usage and tokens. */
 import { GitHub } from '../src/github';
 import { parseResult, type ReviewResult } from '../src/review';
 import { readResult, runContainer } from '../src/reviewer';
@@ -36,7 +29,7 @@ export function commentableLines(diff: string): Map<string, Record<Comment['side
       [left, right] = [Number(hunk?.[1]), Number(hunk?.[2])];
     } else if (lines && line.startsWith('+')) {
       lines.RIGHT.add(right++);
-    } else if (lines && line.startsWith('-') && !line.startsWith('---')) {
+    } else if (lines && line.startsWith('-')) {
       lines.LEFT.add(left++);
     } else if (lines && line.startsWith(' ')) {
       lines.LEFT.add(left++);

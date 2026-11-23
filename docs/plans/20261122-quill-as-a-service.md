@@ -590,9 +590,7 @@ uv run --frozen pytest
 
 In this repository:
 
-- `src/review.ts::Review.run` — where the service will post the result.
-- `src/review.ts::Review.finish` — the dismissal after a cancel by a push, which
-  Task 16 removes.
+- `src/review.ts::Review.run` — where the service posts the result.
 - `src/reviewer.ts::REVIEWER_PERMISSIONS` — the reviewer token's permissions.
 - `src/reviewer.ts::runContainer` — where the result is copied out after exit 0.
 - `reviewer/review.py::PROMPT` — the review prompt.
