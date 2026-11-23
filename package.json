@@ -1,0 +1,13 @@
+{
+  "name": "quill-as-a-service",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/server.ts",
+    "typecheck": "bunx tsc"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.4",
+    "typescript": "5.9.3"
+  }
+}

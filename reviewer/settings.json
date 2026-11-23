@@ -1,0 +1,35 @@
+{
+  "enabledPlugins": {
+    "agentdev@agent-devcontainer": true
+  },
+  "permissions": {
+    "defaultMode": "bypassPermissions",
+    "deny": [
+      "Bash(bash *)",
+      "Bash(sh *)",
+      "Bash(zsh *)",
+      "Bash(uv run *)",
+      "Bash(uv sync*)",
+      "Bash(uv pip *)",
+      "Bash(uv tool *)",
+      "Bash(uv build*)",
+      "Bash(uvx *)",
+      "Bash(python -m *)",
+      "Bash(python3 -m *)",
+      "Bash(pytest*)",
+      "Bash(pre-commit *)",
+      "Bash(bun *)",
+      "Bash(bunx *)",
+      "Bash(npm *)",
+      "Bash(npx *)",
+      "Bash(make*)",
+      "Bash(docker *)",
+      "Bash(docker-compose *)",
+      "Bash(devcontainer *)",
+      "Bash(sleep*)",
+      "Bash(gh run watch*)",
+      "Bash(gh pr checks *--watch*)",
+      "Monitor"
+    ]
+  }
+}
