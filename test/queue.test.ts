@@ -149,14 +149,23 @@ describe('the review queue', () => {
   });
 });
 
-/** A Docker whose containers run until `exit` or a stop. */
-function fakeDocker() {
+/**
+ * A Docker whose create ends with `created`, or waits for `finishCreate` while it is
+ * 'pending', and whose containers run until `exit` or a stop.
+ */
+function fakeDocker({ created = 0 as number | 'pending' } = {}) {
   const calls: { args: string[]; env: Record<string, string> }[] = [];
+  const started: string[] = [];
   const stopped: string[] = [];
   let exit!: (status: number) => void;
+  let finishCreate!: (status: number) => void;
   const engine: Docker = {
-    run(args, env) {
+    create(args, env) {
       calls.push({ args, env });
+      return created === 'pending' ? new Promise<number>((resolve) => (finishCreate = resolve)) : Promise.resolve(created);
+    },
+    start(name) {
+      started.push(name);
       return { exited: new Promise<number>((resolve) => (exit = resolve)) };
     },
     async stop(name) {
@@ -164,7 +173,14 @@ function fakeDocker() {
       exit(143);
     },
   };
-  return { engine, calls, stopped, exit: (status: number) => exit(status) };
+  return {
+    engine,
+    calls,
+    started,
+    stopped,
+    exit: (status: number) => exit(status),
+    finishCreate: (status: number) => finishCreate(status),
+  };
 }
 
 /** A clock that fires its timers only when told to advance. */
@@ -204,11 +220,13 @@ describe('reviewer containers', () => {
   test('a reviewer container is started without --rm', async () => {
     const docker = fakeDocker();
     const run = container(docker.engine, fakeClock().setTimer);
+    await settle();
     docker.exit(0);
     expect(await run).toBe('success');
     const { args, env } = docker.calls[0]!;
     expect(args).not.toContain('--rm');
-    expect(args.slice(0, 3)).toEqual(['run', '--name', 'quill-images-7']);
+    expect(args.slice(0, 3)).toEqual(['create', '--name', 'quill-images-7']);
+    expect(docker.started).toEqual(['quill-images-7']);
     expect(args.at(-1)).toBe('ghcr.io/plume-works/quill-reviewer:edge');
     // Secrets travel in the environment, never on the command line.
     expect(args.join(' ')).not.toContain('secret');
@@ -222,6 +240,7 @@ describe('reviewer containers', () => {
   ])('a container that exits %p ends as %p', async (status, outcome) => {
     const docker = fakeDocker();
     const run = container(docker.engine, fakeClock().setTimer);
+    await settle();
     docker.exit(status);
     expect(await run).toBe(outcome as ContainerOutcome);
   });
@@ -230,6 +249,7 @@ describe('reviewer containers', () => {
     const docker = fakeDocker();
     const clock = fakeClock();
     const run = container(docker.engine, clock.setTimer);
+    await settle();
     clock.advance(REVIEW_TIMEOUT_MS - 1);
     expect(docker.stopped).toEqual([]);
     clock.advance(1);
@@ -242,9 +262,40 @@ describe('reviewer containers', () => {
     const docker = fakeDocker();
     const controller = new AbortController();
     const run = container(docker.engine, fakeClock().setTimer, controller.signal);
+    await settle();
     controller.abort();
     expect(await run).toBe('cancelled');
     expect(docker.stopped).toEqual(['quill-images-7']);
+  });
+
+  test('a review cancelled while its container is created never starts it', async () => {
+    const docker = fakeDocker({ created: 'pending' });
+    const controller = new AbortController();
+    const run = container(docker.engine, fakeClock().setTimer, controller.signal);
+    await settle();
+    controller.abort();
+    docker.finishCreate(0);
+    expect(await run).toBe('cancelled');
+    expect(docker.started).toEqual([]);
+    expect(docker.stopped).toEqual([]);
+  });
+
+  test('a review that times out while its container is created never starts it', async () => {
+    const docker = fakeDocker({ created: 'pending' });
+    const clock = fakeClock();
+    const run = container(docker.engine, clock.setTimer);
+    await settle();
+    clock.advance(REVIEW_TIMEOUT_MS);
+    docker.finishCreate(0);
+    expect(await run).toBe('timeout');
+    expect(docker.started).toEqual([]);
+    expect(docker.stopped).toEqual([]);
+  });
+
+  test('a container that cannot be created ends as failure', async () => {
+    const docker = fakeDocker({ created: 125 });
+    expect(await container(docker.engine, fakeClock().setTimer)).toBe('failure');
+    expect(docker.started).toEqual([]);
   });
 
   test('asks for an installation token limited to the one repository', async () => {

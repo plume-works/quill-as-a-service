@@ -61,7 +61,8 @@ function event(): PullRequestEvent {
 function hangingContainer() {
   let exit!: (status: number) => void;
   const engine: Docker = {
-    run: () => ({ exited: new Promise<number>((resolve) => (exit = resolve)) }),
+    create: async () => 0,
+    start: () => ({ exited: new Promise<number>((resolve) => (exit = resolve)) }),
     stop: async () => exit(143),
   };
   const timers: (() => void)[] = [];

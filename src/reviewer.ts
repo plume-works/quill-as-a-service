@@ -9,18 +9,23 @@ export const REVIEWER_PERMISSIONS = { contents: 'read', pull_requests: 'write', 
 export type ContainerOutcome = 'success' | 'failure' | 'timeout' | 'cancelled';
 
 export interface Docker {
-  /** Start `docker` with `args`; `env` holds values the `-e NAME` arguments pass on. */
-  run(args: string[], env: Record<string, string>): { exited: Promise<number> };
+  /** Run `docker` with the `create` `args`; `env` holds values the `--env NAME` arguments pass on. */
+  create(args: string[], env: Record<string, string>): Promise<number>;
+  /** Start the created container; `exited` resolves to the container's exit status. */
+  start(name: string): { exited: Promise<number> };
   stop(name: string): Promise<void>;
 }
 
 export const docker: Docker = {
-  run(args, env) {
-    const process_ = Bun.spawn(['docker', ...args], {
+  create(args, env) {
+    return Bun.spawn(['docker', ...args], {
       env: { ...process.env, ...env },
       stdout: 'ignore',
       stderr: 'inherit',
-    });
+    }).exited;
+  },
+  start(name) {
+    const process_ = Bun.spawn(['docker', 'start', '--attach', name], { stdout: 'ignore', stderr: 'inherit' });
     return { exited: process_.exited };
   },
   async stop(name) {
@@ -48,9 +53,9 @@ export interface ContainerRun {
   setTimer?: SetTimer;
 }
 
-/** The `docker run` arguments; no `--rm`, so the stopped container keeps the review's log. */
-export const runArgs = (name: string, image: string, env: Record<string, string>): string[] => [
-  'run',
+/** The `docker create` arguments; no `--rm`, so the stopped container keeps the review's log. */
+export const createArgs = (name: string, image: string, env: Record<string, string>): string[] => [
+  'create',
   '--name',
   name,
   ...Object.keys(env).flatMap((key) => ['--env', key]),
@@ -69,17 +74,28 @@ export async function runContainer({
   if (signal.aborted) {
     return 'cancelled';
   }
-  const { exited } = engine.run(runArgs(name, image, env), env);
+  let started = false;
   let stoppedFor: 'timeout' | 'cancelled' | undefined;
   const stop = (reason: 'timeout' | 'cancelled') => {
     stoppedFor ??= reason;
-    void engine.stop(name);
+    // Before the start there is no running container to stop; the start is skipped instead.
+    if (started) {
+      void engine.stop(name);
+    }
   };
   const clearTimer = setTimer(() => stop('timeout'), REVIEW_TIMEOUT_MS);
   const onAbort = () => stop('cancelled');
   signal.addEventListener('abort', onAbort);
   try {
-    const status = await exited;
+    const created = await engine.create(createArgs(name, image, env), env);
+    if (stoppedFor) {
+      return stoppedFor;
+    }
+    if (created !== 0) {
+      return 'failure';
+    }
+    started = true;
+    const status = await engine.start(name).exited;
     return stoppedFor ?? (status === 0 ? 'success' : 'failure');
   } finally {
     clearTimer();
