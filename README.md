@@ -20,8 +20,8 @@ on the reviewed commit. Each review reports a `Quill Review` check run.
 service runs it, and prints the review the reviewer wrote instead of posting it:
 
 ```bash
-export QUILL_CLAUDE_CODE_OAUTH_TOKEN=...   # from `claude setup-token`
-export GH_TOKEN=...                        # read-only: Contents and Pull requests
+export CLAUDE_CODE_OAUTH_TOKEN=...   # from `claude setup-token`
+export GH_TOKEN=...                  # read-only: Contents and Pull requests
 bun scripts/review-locally.ts plume-works/images 42
 ```
 

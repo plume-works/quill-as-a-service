@@ -5,7 +5,7 @@
  *
  *   bun scripts/review-locally.ts <owner/name> <number> [--image <ref>]
  *
- * QUILL_CLAUDE_CODE_OAUTH_TOKEN is the Claude token the review runs on. GH_TOKEN is the token the
+ * CLAUDE_CODE_OAUTH_TOKEN is the Claude token the review runs on. GH_TOKEN is the token the
  * reviewer reads the pull request with; give it read access only, as the service does.
  */
 import { GitHub } from '../src/github';
@@ -64,7 +64,7 @@ async function main(args: string[]): Promise<void> {
   if (!repository?.includes('/') || !/^\d+$/.test(number ?? '')) {
     fail('usage: bun scripts/review-locally.ts <owner/name> <number> [--image <ref>]');
   }
-  const claudeToken = process.env.QUILL_CLAUDE_CODE_OAUTH_TOKEN ?? fail('set QUILL_CLAUDE_CODE_OAUTH_TOKEN');
+  const claudeToken = process.env.CLAUDE_CODE_OAUTH_TOKEN ?? fail('set CLAUDE_CODE_OAUTH_TOKEN');
   const ghToken = process.env.GH_TOKEN ?? fail('set GH_TOKEN, a token that can only read the repository');
 
   let reviewer = image;
