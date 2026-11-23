@@ -8,6 +8,8 @@ export interface Label {
 export interface PullRequestEvent {
   action: string;
   label?: Label;
+  /** The fields an `edited` action changed, by name; `base` when the pull request was retargeted. */
+  changes?: Record<string, unknown>;
   sender: { login: string; type?: string };
   installation: { id: number };
   repository: { full_name: string; name: string; owner: { login: string } };

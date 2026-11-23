@@ -77,6 +77,13 @@ describe('which pull requests the approval covers', () => {
   ])('%s: %p', (_, shape, expected) => {
     expect(isTrustedBotPullRequest(event(shape), [BOT])).toBe(expected);
   });
+
+  test('a retarget of the base re-checks the approval; another edit does not', () => {
+    const edited = event({ action: 'edited' });
+    expect(isTrustedBotPullRequest({ ...edited, changes: { base: { ref: { from: 'main' } } } }, [BOT])).toBe(true);
+    expect(isTrustedBotPullRequest({ ...edited, changes: { title: { from: 'old' } } }, [BOT])).toBe(false);
+    expect(isTrustedBotPullRequest(edited, [BOT])).toBe(false);
+  });
 });
 
 /** A GitHub that holds a pull request's reviews, push activities, and commits. */

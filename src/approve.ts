@@ -57,8 +57,10 @@ export function botApprovalFailure(login: string, activities: Activity[], commit
 /** Return whether the event is a configured trusted bot's pull request that the approval covers. */
 export function isTrustedBotPullRequest(event: PullRequestEvent, trustedBots: string[]): boolean {
   const pullRequest = event.pull_request;
+  // A new base brings in commits the approval never checked.
+  const retargeted = event.action === 'edited' && event.changes?.base !== undefined;
   return (
-    APPROVAL_ACTIONS.includes(event.action) &&
+    (APPROVAL_ACTIONS.includes(event.action) || retargeted) &&
     pullRequest.user.type === 'Bot' &&
     trustedBots.includes(pullRequest.user.login) &&
     pullRequest.head.repo?.full_name === event.repository.full_name
