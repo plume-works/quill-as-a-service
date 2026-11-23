@@ -45,3 +45,7 @@ export function wantsReview({ event, paused, senderPermission }: Decision): bool
       return false;
   }
 }
+
+/** Decide whether this event cancels the pull request's review: a push that queues none leaves it on an old head. */
+export const cancelsReview = (decision: Decision): boolean =>
+  decision.event.action === 'synchronize' && !wantsReview(decision);

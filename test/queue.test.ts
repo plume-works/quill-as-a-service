@@ -202,6 +202,40 @@ describe('the review queue', () => {
     expect(waiting.cancelReason()).toBe('replaced');
   });
 
+  test('a push without the label cancels the running review as pushed', async () => {
+    const events: string[] = [];
+    const queue = new ReviewQueue(() => 5);
+    const running = fakeJob('pr-7', events);
+    await queue.enqueue(running.job);
+    await queue.cancel('pr-7');
+    expect(running.abortReason()).toBe('pushed');
+    expect(queue.size).toEqual({ running: 0, waiting: 0 });
+  });
+
+  test('a push without the label cancels the waiting review as pushed', async () => {
+    const events: string[] = [];
+    const queue = new ReviewQueue(() => 1);
+    const other = fakeJob('pr-1', events);
+    await queue.enqueue(other.job);
+    const waiting = fakeJob('pr-7', events);
+    await queue.enqueue(waiting.job);
+    await queue.cancel('pr-7');
+    expect(waiting.cancelReason()).toBe('pushed');
+    expect(other.aborted()).toBe(false);
+    expect(queue.size).toEqual({ running: 1, waiting: 0 });
+  });
+
+  test('a cancel waits for the placement of the same pull request', async () => {
+    const events: string[] = [];
+    const queue = new ReviewQueue(() => 5);
+    const placing = fakeJob('pr-7', events);
+    const placed = queue.enqueue(placing.job);
+    await queue.cancel('pr-7');
+    await placed;
+    expect(placing.abortReason()).toBe('pushed');
+    expect(queue.size).toEqual({ running: 0, waiting: 0 });
+  });
+
   test('a shut-down queue refuses new reviews', async () => {
     const events: string[] = [];
     const queue = new ReviewQueue(() => 5);

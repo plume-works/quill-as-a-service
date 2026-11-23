@@ -1,6 +1,6 @@
 import { approveTrustedBot, isTrustedBotPullRequest } from './approve';
 import { type Config, loadConfig } from './config';
-import { needsSenderPermission, wantsReview } from './decide';
+import { cancelsReview, needsSenderPermission, wantsReview } from './decide';
 import { type App, appJwt, GitHub, installationToken } from './github';
 import { ReviewQueue } from './queue';
 import { reconcile, reviewerContainers } from './reconcile';
@@ -47,7 +47,12 @@ async function onPullRequest(event: PullRequestEvent, config: Config): Promise<v
       `/repos/${event.repository.full_name}/collaborators/${encodeURIComponent(event.sender.login)}/permission`,
     ));
   }
-  if (!wantsReview({ event, paused: config.paused, senderPermission })) {
+  const decision = { event, paused: config.paused, senderPermission };
+  if (cancelsReview(decision)) {
+    await queue.cancel(where);
+    return;
+  }
+  if (!wantsReview(decision)) {
     return;
   }
   const { head, number } = event.pull_request;

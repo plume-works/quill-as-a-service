@@ -1,5 +1,5 @@
-/** Why a job ends early: a newer job of its key replaced it, or the queue shut down. */
-export type CancelReason = 'replaced' | 'shutdown';
+/** Why a job ends early: a newer job of its key replaced it, a push moved its head, or the queue shut down. */
+export type CancelReason = 'replaced' | 'pushed' | 'shutdown';
 
 /** One review the queue runs; `key` names its pull request. */
 export interface Job {
@@ -38,6 +38,13 @@ export class ReviewQueue {
     return placed;
   }
 
+  /** Cancel the job of `key` that waits or runs, because a push moved its head. */
+  cancel(key: string): Promise<void> {
+    const cancelled = (this.placing.get(key) ?? Promise.resolve()).then(() => this.end(key, 'pushed'));
+    this.placing.set(key, cancelled.catch(log));
+    return cancelled;
+  }
+
   /** Refuse new jobs, cancel the waiting ones, and stop the running ones; resolve when all ended. */
   async shutdown(): Promise<void> {
     this.closed = true;
@@ -53,17 +60,21 @@ export class ReviewQueue {
     return { running: this.running.size, waiting: this.waiting.length };
   }
 
-  private async place(job: Job): Promise<void> {
-    const index = this.waiting.findIndex((other) => other.key === job.key);
+  private async end(key: string, reason: CancelReason): Promise<void> {
+    const index = this.waiting.findIndex((other) => other.key === key);
     if (index !== -1) {
       const [earlier] = this.waiting.splice(index, 1);
-      await earlier!.cancel('replaced').catch(log);
+      await earlier!.cancel(reason).catch(log);
     }
-    const running = this.running.get(job.key);
+    const running = this.running.get(key);
     if (running) {
-      running.controller.abort('replaced' satisfies CancelReason);
+      running.controller.abort(reason);
       await running.done;
     }
+  }
+
+  private async place(job: Job): Promise<void> {
+    await this.end(job.key, 'replaced');
     await job.queued();
     if (this.closed) {
       await job.cancel('shutdown');

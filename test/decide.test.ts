@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { BLOCK_LABEL, REQUEST_LABEL, wantsReview } from '../src/decide';
+import { BLOCK_LABEL, cancelsReview, REQUEST_LABEL, wantsReview } from '../src/decide';
 import type { PullRequestEvent } from '../src/webhook';
 
 const REPOSITORY = 'plume-works/images';
@@ -88,5 +88,22 @@ describe('which events start a review', () => {
     expect(reviews({ ...requested, labels: [REQUEST_LABEL, BLOCK_LABEL] }, { senderPermission: 'admin' })).toBe(false);
     expect(reviews({ ...requested, labels: [REQUEST_LABEL] }, { senderPermission: 'admin', paused: true })).toBe(false);
     expect(reviews({ action: 'synchronize', labels: [REQUEST_LABEL] }, { paused: true })).toBe(false);
+  });
+});
+
+describe('which events cancel a review', () => {
+  const cancels = (shape: Shape, paused = false) => cancelsReview({ event: event(shape), paused });
+
+  test('a push without the request label cancels the review of the old head', () => {
+    expect(cancels({ action: 'synchronize' })).toBe(true);
+    expect(cancels({ action: 'synchronize', labels: [BLOCK_LABEL] })).toBe(true);
+    expect(cancels({ action: 'synchronize', labels: [REQUEST_LABEL] }, true)).toBe(true);
+  });
+
+  test('a push that queues a review, or another action, cancels nothing', () => {
+    expect(cancels({ action: 'synchronize', labels: [REQUEST_LABEL] })).toBe(false);
+    for (const action of ['opened', 'edited', 'labeled', 'unlabeled', 'closed']) {
+      expect(cancels({ action })).toBe(false);
+    }
   });
 });

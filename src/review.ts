@@ -24,6 +24,13 @@ const SUMMARIES: Record<ContainerOutcome, string> = {
 const RERUN_HINT = `Remove and re-add the \`${REQUEST_LABEL}\` label to run it again.`;
 export const STOPPED_SUMMARY = `The Quill service stopped before the review finished. ${RERUN_HINT}`;
 export const RESTARTED_SUMMARY = `The Quill service restarted before the review finished. ${RERUN_HINT}`;
+export const PUSHED_SUMMARY = `A push moved the head before the review finished. Add the \`${REQUEST_LABEL}\` label to review the new head.`;
+
+const CANCELLED_SUMMARIES: Record<CancelReason, string> = {
+  replaced: SUMMARIES.cancelled,
+  pushed: PUSHED_SUMMARY,
+  shutdown: STOPPED_SUMMARY,
+};
 
 export interface ReviewDeps {
   /** A client for the pull request's repository. */
@@ -99,12 +106,12 @@ export class Review implements Job {
 
   private async finish(outcome: ContainerOutcome, reason?: CancelReason): Promise<void> {
     const github = await this.deps.github();
-    const stopped = outcome === 'cancelled' && reason === 'shutdown';
+    const summary = (outcome === 'cancelled' && reason && CANCELLED_SUMMARIES[reason]) || SUMMARIES[outcome];
     await this.updateCheckRun(github, {
       status: 'completed',
       conclusion: CONCLUSIONS[outcome],
       completed_at: new Date().toISOString(),
-      output: { title: CHECK_NAME, summary: stopped ? STOPPED_SUMMARY : SUMMARIES[outcome] },
+      output: { title: CHECK_NAME, summary },
     });
     // A cancelled review leaves the label for the review that replaced it.
     if (outcome !== 'cancelled') {

@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { REQUEST_LABEL } from '../src/decide';
 import { GitHub } from '../src/github';
 import { ReviewQueue } from '../src/queue';
-import { CHECK_NAME, QUILL_LOGIN, Review, STOPPED_SUMMARY } from '../src/review';
+import { CHECK_NAME, PUSHED_SUMMARY, QUILL_LOGIN, Review, STOPPED_SUMMARY } from '../src/review';
 import { type ContainerOutcome, type Docker, REVIEW_TIMEOUT_MS, runContainer, type SetTimer } from '../src/reviewer';
 import type { PullRequestEvent } from '../src/webhook';
 
@@ -188,6 +188,25 @@ describe('a review reports a Quill Review check run', () => {
       .map((call) => (call.body?.output as { summary: string }).summary);
     expect(summaries).toEqual([STOPPED_SUMMARY, STOPPED_SUMMARY]);
     expect(STOPPED_SUMMARY).toContain(REQUEST_LABEL);
+    expect(labelRemovals(github.calls)).toHaveLength(0);
+  });
+
+  test('a review cancelled by a push without the label says the head moved', async () => {
+    const github = fakeGitHub();
+    const queue = new ReviewQueue(() => 1);
+    await queue.enqueue(new Review(event(), { github: github.github, runContainer: hangingContainer().run }));
+    await queue.enqueue(new Review({ ...event(), pull_request: { ...event().pull_request, number: 8 } }, {
+      github: github.github,
+      runContainer: hangingContainer().run,
+    }));
+    await Bun.sleep(0);
+    await queue.cancel('plume-works/images#8');
+    await queue.cancel('plume-works/images#7');
+    const summaries = github.calls
+      .filter((call) => call.body?.conclusion === 'cancelled')
+      .map((call) => (call.body?.output as { summary: string }).summary);
+    expect(summaries).toEqual([PUSHED_SUMMARY, PUSHED_SUMMARY]);
+    expect(PUSHED_SUMMARY).toContain(REQUEST_LABEL);
     expect(labelRemovals(github.calls)).toHaveLength(0);
   });
 
