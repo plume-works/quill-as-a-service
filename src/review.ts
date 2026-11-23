@@ -143,7 +143,7 @@ export class Review implements Job {
       return 'cancelled';
     }
     await github.request('POST', `${this.repo}/pulls/${this.number}/reviews`, {
-      commit_id: this.event.pull_request.head.sha,
+      commit_id: this.event.pull_request.base.sha,
       ...result,
     });
     return 'success';

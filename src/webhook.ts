@@ -19,6 +19,7 @@ export interface PullRequestEvent {
     labels: Label[];
     user: { login: string; type: string };
     head: { sha: string; ref: string; repo: { full_name: string } | null };
+    base: { sha: string };
   };
 }
 
