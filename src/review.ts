@@ -25,6 +25,7 @@ const RERUN_HINT = `Remove and re-add the \`${REQUEST_LABEL}\` label to run it a
 export const STOPPED_SUMMARY = `The Quill service stopped before the review finished. ${RERUN_HINT}`;
 export const RESTARTED_SUMMARY = `The Quill service restarted before the review finished. ${RERUN_HINT}`;
 export const PUSHED_SUMMARY = `A push moved the head before the review finished. Add the \`${REQUEST_LABEL}\` label to review the new head.`;
+export const PUSHED_DISMISSAL = 'A push moved the head before the Quill review finished.';
 
 const CANCELLED_SUMMARIES: Record<CancelReason, string> = {
   replaced: SUMMARIES.cancelled,
@@ -76,7 +77,7 @@ export class Review implements Job {
     try {
       const github = await this.deps.github();
       await this.updateCheckRun(github, { status: 'in_progress', started_at: new Date().toISOString() });
-      await this.dismissApprovals(github);
+      await this.dismissApprovals(github, 'A new Quill review started.');
       outcome = await this.deps.runContainer(signal);
     } catch (error) {
       console.error(`${this.key}: the review failed`, error);
@@ -90,7 +91,7 @@ export class Review implements Job {
   }
 
   /** agent-devcontainer ADR-0103 ("A review starts on open or on request"): a new review withdraws Quill's approval; a change request stays. */
-  private async dismissApprovals(github: GitHub): Promise<void> {
+  private async dismissApprovals(github: GitHub, message: string): Promise<void> {
     const reviews = await github.paginate<PullRequestReview>(
       `${this.repo}/pulls/${this.number}/reviews?per_page=100`,
     );
@@ -98,7 +99,7 @@ export class Review implements Job {
       if (review.user?.login === QUILL_LOGIN && review.state === 'APPROVED') {
         await github.request('PUT', `${this.repo}/pulls/${this.number}/reviews/${review.id}/dismissals`, {
           event: 'DISMISS',
-          message: 'A new Quill review started.',
+          message,
         });
       }
     }
@@ -116,6 +117,10 @@ export class Review implements Job {
     // A cancelled review leaves the label for the review that replaced it.
     if (outcome !== 'cancelled') {
       await this.removeRequestLabel(github);
+    }
+    // A stopping container, or one this review replaced, may approve the new head before it stops.
+    if (outcome === 'cancelled' && reason === 'pushed') {
+      await this.dismissApprovals(github, PUSHED_DISMISSAL);
     }
   }
 

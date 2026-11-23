@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { REQUEST_LABEL } from '../src/decide';
 import { GitHub } from '../src/github';
 import { ReviewQueue } from '../src/queue';
-import { CHECK_NAME, PUSHED_SUMMARY, QUILL_LOGIN, Review, STOPPED_SUMMARY } from '../src/review';
+import { CHECK_NAME, PUSHED_DISMISSAL, PUSHED_SUMMARY, QUILL_LOGIN, Review, STOPPED_SUMMARY } from '../src/review';
 import { type ContainerOutcome, type Docker, REVIEW_TIMEOUT_MS, runContainer, type SetTimer } from '../src/reviewer';
 import type { PullRequestEvent } from '../src/webhook';
 
@@ -208,6 +208,27 @@ describe('a review reports a Quill Review check run', () => {
     expect(summaries).toEqual([PUSHED_SUMMARY, PUSHED_SUMMARY]);
     expect(PUSHED_SUMMARY).toContain(REQUEST_LABEL);
     expect(labelRemovals(github.calls)).toHaveLength(0);
+  });
+
+  test('a review cancelled by a push dismisses an approval posted while its container stopped', async () => {
+    const reviews: unknown[] = [];
+    const github = fakeGitHub({ reviews });
+    const queue = new ReviewQueue(() => 1);
+    const runContainer = async (signal: AbortSignal) => {
+      await new Promise((resolve) => signal.addEventListener('abort', resolve));
+      reviews.push({ id: 5, state: 'APPROVED', user: { login: QUILL_LOGIN } });
+      await Bun.sleep(0);
+      github.calls.push({ method: 'EXITED', path: 'container' });
+      return 'cancelled' as const;
+    };
+    await queue.enqueue(new Review(event(), { github: github.github, runContainer }));
+    await Bun.sleep(0);
+    await queue.cancel('plume-works/images#7');
+    const order = github.calls.map((call) => `${call.method} ${call.path}`);
+    const dismissal = order.indexOf(`PUT ${REPO}/pulls/7/reviews/5/dismissals`);
+    expect(dismissal).toBeGreaterThan(order.indexOf('EXITED container'));
+    expect(order.indexOf('EXITED container')).toBeGreaterThan(-1);
+    expect(github.calls[dismissal]!.body).toEqual({ event: 'DISMISS', message: PUSHED_DISMISSAL });
   });
 
   test('a review without the label on ends cleanly', async () => {
