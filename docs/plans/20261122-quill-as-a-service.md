@@ -308,24 +308,24 @@ fields of GitHub's create-review request.
 **Files:** Modify: `src/reviewer.ts`, `src/review.ts`, `src/server.ts`,
 `test/review.test.ts`, `test/queue.test.ts`
 
-- [ ] `src/reviewer.ts` copies `/review/result.json` out of a reviewer container
+- [x] `src/reviewer.ts` copies `/review/result.json` out of a reviewer container
   that exited 0; `bun test test/queue.test.ts` passes with a fake engine.
-- [ ] A review whose container exits 0 with a valid result posts one pull
+- [x] A review whose container exits 0 with a valid result posts one pull
   request review with the result's event, body, and comments and the reviewed
   head as `commit_id`, then completes the check run as success;
   `bun test test/review.test.ts` passes.
-- [ ] A review whose container exits 0 without a result file completes the
+- [x] A review whose container exits 0 without a result file completes the
   check run as failure and posts no review; `bun test test/review.test.ts`
   passes.
-- [ ] A review whose result is malformed completes the check run as failure and
+- [x] A review whose result is malformed completes the check run as failure and
   posts no review; `bun test test/review.test.ts` passes.
-- [ ] A review GitHub refuses to create completes the check run as failure,
+- [x] A review GitHub refuses to create completes the check run as failure,
   provoked with a fake GitHub that answers the post with 422;
   `bun test test/review.test.ts` passes.
-- [ ] A review cancelled while its container exits posts no review, provoked
+- [x] A review cancelled while its container exits posts no review, provoked
   with a container run that resolves after the cancel;
   `bun test test/review.test.ts` passes.
-- [ ] A review cancelled by a push dismisses no approval;
+- [x] A review cancelled by a push dismisses no approval;
   `bun test test/review.test.ts` passes.
 
 ### Task 17: Give the reviewer a read-only token

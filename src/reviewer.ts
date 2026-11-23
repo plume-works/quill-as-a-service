@@ -1,9 +1,14 @@
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { type App, installationToken } from './github';
 import type { PullRequestEvent } from './webhook';
 
 export const REVIEW_TIMEOUT_MS = 30 * 60 * 1000;
 /** How often a stop is sent again until the container exits; one sent as it starts misses it. */
 export const STOP_RESEND_MS = 5 * 1000;
+/** Where the reviewer writes the review the service posts. */
+export const RESULT_PATH = '/review/result.json';
 
 /** What the reviewer's installation token may do: read the code, post the review and comments. */
 export const REVIEWER_PERMISSIONS = { contents: 'read', pull_requests: 'write', issues: 'write' };
@@ -16,6 +21,8 @@ export interface Docker {
   /** Start the created container; `exited` resolves to the container's exit status. */
   start(name: string): { exited: Promise<number> };
   stop(name: string): Promise<void>;
+  /** Copy the file at `path` out of the container; undefined when it holds none. */
+  readFile(name: string, path: string): Promise<string | undefined>;
 }
 
 export const docker: Docker = {
@@ -33,7 +40,20 @@ export const docker: Docker = {
   async stop(name) {
     await Bun.spawn(['docker', 'stop', '--time', '30', name], { stdout: 'ignore' }).exited;
   },
+  async readFile(name, path) {
+    const dir = await mkdtemp(join(tmpdir(), 'quill-'));
+    try {
+      const copy = Bun.spawn(['docker', 'cp', `${name}:${path}`, join(dir, 'file')], { stdout: 'ignore' });
+      return (await copy.exited) === 0 ? await readFile(join(dir, 'file'), 'utf8') : undefined;
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  },
 };
+
+/** Copy the review's result out of the stopped reviewer container `name`. */
+export const readResult = (name: string, engine: Docker = docker): Promise<string | undefined> =>
+  engine.readFile(name, RESULT_PATH);
 
 export type SetTimer = (callback: () => void, ms: number) => () => void;
 

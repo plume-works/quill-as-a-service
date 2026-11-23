@@ -5,7 +5,7 @@ import { type App, appJwt, GitHub, installationToken } from './github';
 import { ReviewQueue } from './queue';
 import { reconcile, reviewerContainers } from './reconcile';
 import { Review } from './review';
-import { reviewerToken, runContainer } from './reviewer';
+import { readResult, reviewerToken, runContainer } from './reviewer';
 import { PerKey } from './serial';
 import { handleWebhook, type PullRequestEvent } from './webhook';
 
@@ -65,12 +65,14 @@ async function handlePullRequest(event: PullRequestEvent, config: Config): Promi
     console.log(`${where}: ${head.sha} is no longer the head, skipping the review after ${event.action}`);
     return;
   }
+  const name = `quill-${event.repository.full_name.replace('/', '-')}-${number}-${head.sha.slice(0, 12)}-${Date.now()}`;
   const review = new Review(event, {
     github,
+    readResult: () => readResult(name),
     runContainer: async (signal) =>
       runContainer({
         image: reviewerImage,
-        name: `quill-${event.repository.full_name.replace('/', '-')}-${number}-${head.sha.slice(0, 12)}-${Date.now()}`,
+        name,
         env: {
           REPOSITORY: event.repository.full_name,
           PR_NUMBER: String(number),

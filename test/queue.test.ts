@@ -7,7 +7,9 @@ import {
   type ContainerOutcome,
   type Docker,
   REVIEW_TIMEOUT_MS,
+  RESULT_PATH,
   REVIEWER_PERMISSIONS,
+  readResult,
   reviewerToken,
   runContainer,
   type SetTimer,
@@ -309,6 +311,7 @@ function fakeDocker({ created = 0 as number | 'pending', landed = true } = {}) {
   const calls: { args: string[]; env: Record<string, string> }[] = [];
   const started: string[] = [];
   const stopped: string[] = [];
+  const read: string[] = [];
   let exit!: (status: number) => void;
   let finishCreate!: (status: number) => void;
   const engine: Docker = {
@@ -326,12 +329,17 @@ function fakeDocker({ created = 0 as number | 'pending', landed = true } = {}) {
         exit(143);
       }
     },
+    async readFile(name, path) {
+      read.push(`${name}:${path}`);
+      return '{"event": "APPROVE"}';
+    },
   };
   return {
     engine,
     calls,
     started,
     stopped,
+    read,
     land: () => (landed = true),
     exit: (status: number) => exit(status),
     finishCreate: (status: number) => finishCreate(status),
@@ -479,6 +487,17 @@ describe('reviewer containers', () => {
     const docker = fakeDocker({ created: 125 });
     expect(await container(docker.engine, fakeClock().setTimer)).toBe('failure');
     expect(docker.started).toEqual([]);
+  });
+
+  test('the result is copied out of the stopped container', async () => {
+    const docker = fakeDocker();
+    const run = container(docker.engine, fakeClock().setTimer);
+    await settle();
+    docker.exit(0);
+    expect(await run).toBe('success');
+    expect(await readResult('quill-images-7', docker.engine)).toBe('{"event": "APPROVE"}');
+    expect(docker.read).toEqual([`quill-images-7:${RESULT_PATH}`]);
+    expect(RESULT_PATH).toBe('/review/result.json');
   });
 
   test('asks for an installation token limited to the one repository', async () => {

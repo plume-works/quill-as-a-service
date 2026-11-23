@@ -25,7 +25,6 @@ const RERUN_HINT = `Add the \`${REQUEST_LABEL}\` label to run it again, or remov
 export const STOPPED_SUMMARY = `The Quill service stopped before the review finished. ${RERUN_HINT}`;
 export const RESTARTED_SUMMARY = `The Quill service restarted before the review finished. ${RERUN_HINT}`;
 export const PUSHED_SUMMARY = `A push moved the head before the review finished. ${RERUN_HINT}`;
-export const PUSHED_DISMISSAL = 'A push moved the head before the Quill review finished.';
 
 const CANCELLED_SUMMARIES: Record<CancelReason, string> = {
   replaced: SUMMARIES.cancelled,
@@ -38,6 +37,45 @@ export interface ReviewDeps {
   github: () => Promise<GitHub>;
   /** Run the reviewer container for this review's head. */
   runContainer: (signal: AbortSignal) => Promise<ContainerOutcome>;
+  /** Read the result the reviewer container wrote; undefined when it wrote none. */
+  readResult: () => Promise<string | undefined>;
+}
+
+/** The review the reviewer writes, in the fields of GitHub's create-review request. */
+export interface ReviewResult {
+  event: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT';
+  body: string;
+  comments: { path: string; line: number; side: 'LEFT' | 'RIGHT'; body: string }[];
+}
+
+const EVENTS = new Set(['APPROVE', 'REQUEST_CHANGES', 'COMMENT']);
+
+const isComment = (comment: unknown): boolean => {
+  const { path, line, side, body } = (comment ?? {}) as Record<string, unknown>;
+  return (
+    typeof path === 'string' &&
+    Number.isInteger(line) &&
+    (line as number) > 0 &&
+    (side === 'LEFT' || side === 'RIGHT') &&
+    typeof body === 'string'
+  );
+};
+
+/** Parse the reviewer's result; undefined when it is not one. */
+export function parseResult(text: string): ReviewResult | undefined {
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+  const { event, body, comments } = (value ?? {}) as Record<string, unknown>;
+  const valid =
+    EVENTS.has(event as string) &&
+    typeof body === 'string' &&
+    Array.isArray(comments) &&
+    comments.every(isComment);
+  return valid ? { event, body, comments } as ReviewResult : undefined;
 }
 
 interface PullRequestReview {
@@ -79,6 +117,9 @@ export class Review implements Job {
       await this.updateCheckRun(github, { status: 'in_progress', started_at: new Date().toISOString() });
       await this.dismissApprovals(github, 'A new Quill review started.');
       outcome = await this.deps.runContainer(signal);
+      if (outcome === 'success') {
+        outcome = await this.post(github, signal);
+      }
     } catch (error) {
       console.error(`${this.key}: the review failed`, error);
       outcome = signal.aborted ? 'cancelled' : 'failure';
@@ -88,6 +129,24 @@ export class Review implements Job {
 
   cancel(reason: CancelReason = 'replaced'): Promise<void> {
     return this.finish('cancelled', reason);
+  }
+
+  /** ADR-0003: post the reviewer's result on the reviewed head, unless the review was cancelled. */
+  private async post(github: GitHub, signal: AbortSignal): Promise<ContainerOutcome> {
+    const text = await this.deps.readResult();
+    const result = text === undefined ? undefined : parseResult(text);
+    if (!result) {
+      console.error(`${this.key}: the reviewer wrote no usable result`);
+      return 'failure';
+    }
+    if (signal.aborted) {
+      return 'cancelled';
+    }
+    await github.request('POST', `${this.repo}/pulls/${this.number}/reviews`, {
+      commit_id: this.event.pull_request.head.sha,
+      ...result,
+    });
+    return 'success';
   }
 
   /** ADR-0002 ("A review starts on open or on request"): a new review withdraws Quill's approval; a change request stays. */
@@ -117,10 +176,6 @@ export class Review implements Job {
     // A cancelled review leaves the label for the review that replaced it.
     if (outcome !== 'cancelled') {
       await this.removeRequestLabel(github);
-    }
-    // A stopping container, or one this review replaced, may approve the new head before it stops.
-    if (outcome === 'cancelled' && reason === 'pushed') {
-      await this.dismissApprovals(github, PUSHED_DISMISSAL);
     }
   }
 
