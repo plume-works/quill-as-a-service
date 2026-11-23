@@ -1,0 +1,28 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "customManagers": [
+    {
+      "description": "Commit pins written as `# renovate: datasource=… depName=… currentValue=…` above an ARG",
+      "customType": "regex",
+      "managerFilePatterns": ["/(^|/)Dockerfile$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+) currentValue=(?<currentValue>\\S+)\\s+ARG \\w+=(?<currentDigest>[0-9a-f]{40})"
+      ]
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "The core and core-systemd base images move together, by digest",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["ghcr.io/plume-works/core", "ghcr.io/plume-works/core-systemd"],
+      "groupName": "plume-works base images"
+    },
+    {
+      "description": "The agentdev catalog the reviewer image installs",
+      "matchDatasources": ["git-refs"],
+      "matchPackageNames": ["https://github.com/plume-works/agent-devcontainer"],
+      "groupName": "agentdev catalog"
+    }
+  ]
+}
