@@ -23,9 +23,10 @@ The repository builds two images.
 - The **reviewer image**, `FROM ghcr.io/plume-works/core`, installs the
   `agentdev` plugin of `plume-works/agent-devcontainer` at a pinned commit, and
   the reviewer settings. Its entry command checks out one head commit and runs
-  Claude Code headless with the review prompt; the review posts through
-  `pr-review`'s `post-review.py`. It exits non-zero when Claude fails or hits
-  the spend limit.
+  Claude Code headless with the review prompt. `pr-review` writes the review —
+  its event, its body, and its inline comments — to `/review/result.json` in
+  the container and posts nothing. The entry command exits non-zero when Claude
+  fails or hits the spend limit.
 - The **service image**, `FROM ghcr.io/plume-works/core-systemd`, runs under
   sysbox behind the reverse proxy of agent-devcontainer's
   `docker/deploy/README.md`. A Bun server
@@ -36,8 +37,19 @@ The repository builds two images.
 The configuration holds the repositories to review, the trusted bots, a pause
 switch, and the maximum number of concurrent reviews (default 5). Secrets — the
 App private key, the webhook secret, and the Claude OAuth token — sit in an env
-file on the host. Each reviewer container gets an installation token limited to
-its one repository and the Claude token, never the App key.
+file on the host. Each reviewer container gets the Claude token and an
+installation token limited to its one repository that can only read
+(Contents: read, Pull requests: read), never the App key
+([ADR-0003](../adrs/0003-the-service-posts-the-review.md)).
+
+The service alone writes to GitHub. When a reviewer container exits 0, the
+service copies `/review/result.json` out of the stopped container and, unless
+the review was cancelled by then, posts one pull request review with the
+result's event, body, and comments and the reviewed head as its `commit_id`. A
+review is cancelled only before that post: a push that arrives during the post
+leaves the posted review on the commit it reviewed, as it leaves a review that
+finished a moment earlier. A missing or malformed result, or a review GitHub
+refuses, completes the check run as failure and posts nothing.
 
 Reviewer containers run without `--rm`: a finished container is the review's
 log, transcript included. core-systemd's daily cleanup removes it once it has
@@ -67,7 +79,11 @@ Assumptions: the check run is named `Quill Review`; a review container is
 stopped after 30 minutes, as the workflow's `timeout-minutes: 30`; the review
 prompt is the one agent-devcontainer's
 `.github/workflows/ai-responder.yml#jobs.preflight` builds in
-its "Determine agent prompts" step.
+its "Determine agent prompts" step, asking `pr-review` for its result file
+instead of a posted review; `/review/result.json` holds one JSON object,
+`{"event": "APPROVE" | "REQUEST_CHANGES" | "COMMENT", "body": "...",
+"comments": [{"path": "...", "line": 1, "side": "RIGHT", "body": "..."}]}`, the
+fields of GitHub's create-review request.
 
 ## Implementation Steps
 
@@ -258,19 +274,78 @@ its "Determine agent prompts" step.
 - [x] `renovate.json` has rules that match the `core` and `core-systemd` digests
   and the `agent-devcontainer` commit pin.
 
-### Task 14: Publish the images
+### Task 14: Write the review to a file in pr-review
+
+**Closed by:** the agent-devcontainer pull request that adds the mode merging.
+
+- [ ] `agentdev:pr-review`, asked for a result file, writes its event, body, and
+  inline comments to that file in the shape `## Approach` gives and posts no
+  review or comment.
+
+### Task 15: Have the reviewer write its result
+
+**Files:** Modify: `reviewer/Dockerfile`, `reviewer/review.py`,
+`tests/test_review.py`
+
+- [ ] `reviewer/Dockerfile` pins an `agent-devcontainer` commit that has Task
+  14's mode.
+- [ ] `reviewer/Dockerfile` creates `/review`, writable by the user Claude runs
+  as.
+- [ ] The prompt `reviewer/review.py` gives Claude asks `agentdev:pr-review` for
+  `/review/result.json` and for no posted review;
+  `uv run pytest tests/test_review.py` passes with a stubbed `claude` that
+  records its prompt.
+
+### Task 16: Post the review from the service
+
+**Files:** Modify: `src/reviewer.ts`, `src/review.ts`, `src/server.ts`,
+`test/review.test.ts`, `test/queue.test.ts`
+
+- [ ] `src/reviewer.ts` copies `/review/result.json` out of a reviewer container
+  that exited 0; `bun test test/queue.test.ts` passes with a fake engine.
+- [ ] A review whose container exits 0 with a valid result posts one pull
+  request review with the result's event, body, and comments and the reviewed
+  head as `commit_id`, then completes the check run as success;
+  `bun test test/review.test.ts` passes.
+- [ ] A review whose container exits 0 without a result file completes the
+  check run as failure and posts no review; `bun test test/review.test.ts`
+  passes.
+- [ ] A review whose result is malformed completes the check run as failure and
+  posts no review; `bun test test/review.test.ts` passes.
+- [ ] A review GitHub refuses to create completes the check run as failure,
+  provoked with a fake GitHub that answers the post with 422;
+  `bun test test/review.test.ts` passes.
+- [ ] A review cancelled while its container exits posts no review, provoked
+  with a container run that resolves after the cancel;
+  `bun test test/review.test.ts` passes.
+- [ ] A review cancelled by a push dismisses no approval;
+  `bun test test/review.test.ts` passes.
+
+### Task 17: Give the reviewer a read-only token
+
+**Files:** Modify: `src/reviewer.ts`, `test/queue.test.ts`, `docs/deploy.md`,
+`README.md`
+
+- [ ] `src/reviewer.ts` asks for an installation token with Contents: read and
+  Pull requests: read only; `bun test test/queue.test.ts` passes.
+- [ ] `docs/deploy.md` says that the reviewer container's token only reads and
+  that the service posts the review.
+- [ ] `README.md` says that the service posts the review the reviewer container
+  writes.
+
+### Task 18: Publish the images
 
 **Closed by:** the first CI run on `main` of `plume-works/quill-as-a-service`.
 
 - [ ] The service image and the reviewer image are on `ghcr.io/plume-works`.
 
-### Task 15: Deploy the service
+### Task 19: Deploy the service
 
 **Closed by:** a maintainer deploying the service on a sysbox host.
 
 - [ ] The service answers the Quill App's webhook deliveries with success.
 
-### Task 16: Onboard plume-works/images
+### Task 20: Onboard plume-works/images
 
 **Closed by:** a maintainer adding `plume-works/images` to the configuration and
 installing the Quill App on it, then watching its pull requests.
@@ -410,17 +485,52 @@ installing the Quill App on it, then watching its pull requests.
 
 - **WHEN** the `agentdev` plugin, and with it `agentdev:pr-review`, is not
   available in the reviewer container
-- **THEN** `reviewer/review.py` exits non-zero before Claude reviews, so no
-  review or approval posts and the check run fails
+- **THEN** `reviewer/review.py` exits non-zero before Claude reviews, so the
+  service posts no review and the check run fails
 - **Test:**
   `tests/test_review.py::test_exits_non_zero_when_the_agentdev_plugin_is_missing`
 
-### Scenario: The reviewer posts a review of the head
+### Scenario: The service posts the reviewer's result on the reviewed commit
+
+- **WHEN** a reviewer container exits 0 with a valid `/review/result.json` and
+  the review was not cancelled
+- **THEN** the service posts one review with the result's event, body, and
+  comments, its `commit_id` the reviewed head, and the check run completes as
+  success
+- **Test:**
+  `test/review.test.ts::the service posts the result on the reviewed commit`
+
+### Scenario: A review without a usable result fails and posts nothing
+
+- **WHEN** a reviewer container exits 0 with no result file or a malformed one,
+  or GitHub refuses the review
+- **THEN** the check run completes as failure, and no review is posted
+- **Test:**
+  `test/review.test.ts::a review without a usable result fails and posts nothing`
+
+### Scenario: A cancelled review posts nothing
+
+- **WHEN** a push or a newer review cancels a review before the service posts
+  it, including while its container exits
+- **THEN** no review is posted and no approval is dismissed for that cancel; a
+  push that arrives during the post leaves the posted review on the commit it
+  reviewed
+- **Test:** `test/review.test.ts::a cancelled review posts nothing`
+
+### Scenario: The reviewer container cannot write to GitHub
+
+- **WHEN** the service asks for a reviewer container's installation token
+- **THEN** the token is limited to the one repository with Contents: read and
+  Pull requests: read
+- **Test:**
+  `test/queue.test.ts::asks for a read-only installation token limited to the one repository`
+
+### Scenario: Quill reviews a pull request on plume-works/images
 
 - **WHEN** the reviewer image runs for a pull request on `plume-works/images`
 - **THEN** a review by `plume-works-quill[bot]` names the head commit
 - **Checked at ship:**
-  `docs/plans/20261122-quill-as-a-service.md#task-16-onboard-plume-worksimages`
+  `docs/plans/20261122-quill-as-a-service.md#task-20-onboard-plume-worksimages`
 
 ## Verification
 
@@ -439,10 +549,21 @@ uv run --frozen pytest
 - Comment and mention triggers, and reviews on each push.
 - Keeping review transcripts beyond the container's lifetime.
 - Pull requests from forks.
+- Moving an inline comment GitHub cannot place into a separate comment; a
+  review GitHub refuses fails.
 
 ## Key references
 
-These paths are in agent-devcontainer.
+In this repository:
+
+- `src/review.ts::Review.run` — where the service will post the result.
+- `src/review.ts::Review.finish` — the dismissal after a cancel by a push, which
+  Task 16 removes.
+- `src/reviewer.ts::REVIEWER_PERMISSIONS` — the reviewer token's permissions.
+- `src/reviewer.ts::runContainer` — where the result is copied out after exit 0.
+- `reviewer/review.py::PROMPT` — the review prompt.
+
+In agent-devcontainer:
 
 - `.github/actions/ai-review-status/review-gate.js::botApprovalFailure` — the
   bypass auto-approval rule that Task 9 ports.
@@ -459,7 +580,7 @@ These paths are in agent-devcontainer.
   the tools the reviewer settings deny.
 - `.github/actions/run-claude-responder/action.yml` › "Fail on Claude usage
   limit" — the spend-limit message the reviewer detects.
-- `.agents/plugins/agentdev/skills/pr-review/agent-code/post-review.py` — how
-  the review posts without `claude-code-action`.
+- `.agents/plugins/agentdev/skills/pr-review/SKILL.md#fallback-single-call-script`
+  — the summary and comments files that Task 14's result file carries.
 - `docker/deploy/README.md#1-create-the-proxy-network` — the reverse-proxy
   pattern the deployment follows.
