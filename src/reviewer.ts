@@ -10,8 +10,8 @@ export const STOP_RESEND_MS = 5 * 1000;
 /** Where the reviewer writes the review the service posts. */
 export const RESULT_PATH = '/review/result.json';
 
-/** What the reviewer's installation token may do: read the code, post the review and comments. */
-export const REVIEWER_PERMISSIONS = { contents: 'read', pull_requests: 'write', issues: 'write' };
+/** What the reviewer's installation token may do: read the code and the pull request (ADR-0003). */
+export const REVIEWER_PERMISSIONS = { contents: 'read', pull_requests: 'read' };
 
 export type ContainerOutcome = 'success' | 'failure' | 'timeout' | 'cancelled';
 

@@ -8,7 +8,6 @@ import {
   type Docker,
   REVIEW_TIMEOUT_MS,
   RESULT_PATH,
-  REVIEWER_PERMISSIONS,
   readResult,
   reviewerToken,
   runContainer,
@@ -500,7 +499,7 @@ describe('reviewer containers', () => {
     expect(RESULT_PATH).toBe('/review/result.json');
   });
 
-  test('asks for an installation token limited to the one repository', async () => {
+  test('asks for a read-only installation token limited to the one repository', async () => {
     const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
     const requests: { url: string; body: unknown; authorization: string | null }[] = [];
     const fetchFn = async (url: string, init?: RequestInit) => {
@@ -520,7 +519,10 @@ describe('reviewer containers', () => {
     expect(token).toBe('ghs_scoped');
     expect(requests).toHaveLength(1);
     expect(requests[0]!.url).toBe('https://api.github.com/app/installations/42/access_tokens');
-    expect(requests[0]!.body).toEqual({ repositories: ['images'], permissions: REVIEWER_PERMISSIONS });
+    expect(requests[0]!.body).toEqual({
+      repositories: ['images'],
+      permissions: { contents: 'read', pull_requests: 'read' },
+    });
     expect(requests[0]!.authorization).toMatch(/^Bearer [\w-]+\.[\w-]+\.[\w-]+$/);
     const [header, claims, signature] = requests[0]!.authorization!.slice('Bearer '.length).split('.');
     const verified = createVerify('RSA-SHA256').update(`${header}.${claims}`).verify(publicKey, signature!, 'base64url');

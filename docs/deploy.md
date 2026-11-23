@@ -59,8 +59,9 @@ Fill in `etc/service.env`; the file's comments say what each setting holds.
 - `QUILL_REVIEWER_IMAGE`: `ghcr.io/plume-works/quill-reviewer:edge@sha256:<digest>`; get the
   digest with `docker buildx imagetools inspect ghcr.io/plume-works/quill-reviewer:edge`.
 
-Each reviewer container gets an installation token for its one repository and the Claude
-token, never the App's private key.
+Each reviewer container gets the Claude token and an installation token that can only read its
+one repository, never the App's private key. The reviewer writes its review to a file; the
+service posts it.
 
 ## 5. Write the configuration
 
@@ -125,7 +126,10 @@ after it stopped:
 ```bash
 docker exec quill-quill-1 docker ps -a --filter name=quill-
 docker exec quill-quill-1 docker logs <container>
+docker exec quill-quill-1 docker cp <container>:/review/result.json - | tar -xO
 ```
+
+The last command prints the review the reviewer wrote, as the service posted it.
 
 ## Upgrading
 

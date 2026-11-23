@@ -333,11 +333,11 @@ fields of GitHub's create-review request.
 **Files:** Modify: `src/reviewer.ts`, `test/queue.test.ts`, `docs/deploy.md`,
 `README.md`
 
-- [ ] `src/reviewer.ts` asks for an installation token with Contents: read and
+- [x] `src/reviewer.ts` asks for an installation token with Contents: read and
   Pull requests: read only; `bun test test/queue.test.ts` passes.
-- [ ] `docs/deploy.md` says that the reviewer container's token only reads and
+- [x] `docs/deploy.md` says that the reviewer container's token only reads and
   that the service posts the review.
-- [ ] `README.md` says that the service posts the review the reviewer container
+- [x] `README.md` says that the service posts the review the reviewer container
   writes.
 
 ### Task 18: Publish the images
