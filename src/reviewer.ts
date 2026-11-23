@@ -2,6 +2,8 @@ import { type App, installationToken } from './github';
 import type { PullRequestEvent } from './webhook';
 
 export const REVIEW_TIMEOUT_MS = 30 * 60 * 1000;
+/** How often a stop is sent again until the container exits; one sent as it starts misses it. */
+export const STOP_RESEND_MS = 5 * 1000;
 
 /** What the reviewer's installation token may do: read the code, post the review and comments. */
 export const REVIEWER_PERMISSIONS = { contents: 'read', pull_requests: 'write', issues: 'write' };
@@ -75,12 +77,21 @@ export async function runContainer({
     return 'cancelled';
   }
   let started = false;
+  let exited = false;
   let stoppedFor: 'timeout' | 'cancelled' | undefined;
+  let clearResend = () => {};
+  const sendStop = () => {
+    clearResend();
+    if (!exited) {
+      void engine.stop(name);
+      clearResend = setTimer(sendStop, STOP_RESEND_MS);
+    }
+  };
   const stop = (reason: 'timeout' | 'cancelled') => {
     stoppedFor ??= reason;
     // Before the start there is no running container to stop; the start is skipped instead.
     if (started) {
-      void engine.stop(name);
+      sendStop();
     }
   };
   const clearTimer = setTimer(() => stop('timeout'), REVIEW_TIMEOUT_MS);
@@ -98,6 +109,8 @@ export async function runContainer({
     const status = await engine.start(name).exited;
     return stoppedFor ?? (status === 0 ? 'success' : 'failure');
   } finally {
+    exited = true;
+    clearResend();
     clearTimer();
     signal.removeEventListener('abort', onAbort);
   }

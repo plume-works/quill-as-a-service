@@ -11,6 +11,7 @@ import {
   reviewerToken,
   runContainer,
   type SetTimer,
+  STOP_RESEND_MS,
 } from '../src/reviewer';
 import type { PullRequestEvent } from '../src/webhook';
 
@@ -302,9 +303,9 @@ describe('the review queue', () => {
 
 /**
  * A Docker whose create ends with `created`, or waits for `finishCreate` while it is
- * 'pending', and whose containers run until `exit` or a stop.
+ * 'pending', and whose containers run until `exit` or a stop; a stop before `land` misses.
  */
-function fakeDocker({ created = 0 as number | 'pending' } = {}) {
+function fakeDocker({ created = 0 as number | 'pending', landed = true } = {}) {
   const calls: { args: string[]; env: Record<string, string> }[] = [];
   const started: string[] = [];
   const stopped: string[] = [];
@@ -321,7 +322,9 @@ function fakeDocker({ created = 0 as number | 'pending' } = {}) {
     },
     async stop(name) {
       stopped.push(name);
-      exit(143);
+      if (landed) {
+        exit(143);
+      }
     },
   };
   return {
@@ -329,6 +332,7 @@ function fakeDocker({ created = 0 as number | 'pending' } = {}) {
     calls,
     started,
     stopped,
+    land: () => (landed = true),
     exit: (status: number) => exit(status),
     finishCreate: (status: number) => finishCreate(status),
   };
@@ -416,6 +420,34 @@ describe('reviewer containers', () => {
     await settle();
     controller.abort();
     expect(await run).toBe('cancelled');
+    expect(docker.stopped).toEqual(['quill-images-7']);
+  });
+
+  test('a cancel that hits before the start lands is re-sent until the container stops', async () => {
+    const docker = fakeDocker({ landed: false });
+    const clock = fakeClock();
+    const controller = new AbortController();
+    const run = container(docker.engine, clock.setTimer, controller.signal);
+    await settle();
+    controller.abort();
+    expect(docker.stopped).toEqual(['quill-images-7']);
+    clock.advance(STOP_RESEND_MS);
+    expect(docker.stopped).toHaveLength(2);
+    docker.land();
+    clock.advance(STOP_RESEND_MS);
+    expect(docker.stopped).toHaveLength(3);
+    expect(await run).toBe('cancelled');
+  });
+
+  test('a stop is re-sent only until the container exits', async () => {
+    const docker = fakeDocker();
+    const clock = fakeClock();
+    const controller = new AbortController();
+    const run = container(docker.engine, clock.setTimer, controller.signal);
+    await settle();
+    controller.abort();
+    expect(await run).toBe('cancelled');
+    clock.advance(10 * STOP_RESEND_MS);
     expect(docker.stopped).toEqual(['quill-images-7']);
   });
 
