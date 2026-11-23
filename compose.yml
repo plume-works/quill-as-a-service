@@ -1,0 +1,20 @@
+# Quill behind an existing reverse proxy on the agentdev-proxy network; see docs/deploy.md.
+services:
+  quill:
+    image: ghcr.io/plume-works/quill-as-a-service:edge
+    # The reviewer containers run on the service's own engine, which sysbox isolates from the host.
+    runtime: sysbox-runc
+    restart: unless-stopped
+    # Long enough for the inner engine to stop the reviewer containers.
+    stop_grace_period: 1m
+    volumes:
+      # service.env (secrets) and config.json; a directory, so an edit replacing a file shows.
+      - ./etc:/etc/quill:ro
+    # The proxy reaches the webhook on port 8080 over this network; no host port is published.
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    name: agentdev-proxy
+    external: true
