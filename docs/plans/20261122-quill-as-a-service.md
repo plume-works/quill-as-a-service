@@ -340,19 +340,42 @@ fields of GitHub's create-review request.
 - [x] `README.md` says that the service posts the review the reviewer container
   writes.
 
-### Task 18: Publish the images
+### Task 18: Review a pull request locally
+
+**Files:** Create: `scripts/review-locally.ts`, `test/review-locally.test.ts`;
+Modify: `tsconfig.json`, `README.md`
+
+- [x] `scripts/review-locally.ts` runs the reviewer image for one pull request on
+  the local Docker engine through `src/reviewer.ts::runContainer`, reads its
+  result through `src/reviewer.ts::readResult` and
+  `src/review.ts::parseResult`, and posts nothing.
+- [x] `scripts/review-locally.ts` reports each comment of the result that is not
+  on a line of the pull request's diff; `bun test test/review-locally.test.ts`
+  passes.
+- [x] `README.md` gives the command and the two tokens it reads.
+
+### Task 19: Run a live review locally
+
+**Closed by:** a maintainer running `scripts/review-locally.ts` with a Claude
+token and a read-only GitHub token.
+
+- [ ] A live review of a real pull request writes a result
+  `src/review.ts::parseResult` accepts.
+- [ ] Every comment of that result is on a line of the pull request's diff.
+
+### Task 20: Publish the images
 
 **Closed by:** the first CI run on `main` of `plume-works/quill-as-a-service`.
 
 - [ ] The service image and the reviewer image are on `ghcr.io/plume-works`.
 
-### Task 19: Deploy the service
+### Task 21: Deploy the service
 
 **Closed by:** a maintainer deploying the service on a sysbox host.
 
 - [ ] The service answers the Quill App's webhook deliveries with success.
 
-### Task 20: Onboard plume-works/images
+### Task 22: Onboard plume-works/images
 
 **Closed by:** a maintainer adding `plume-works/images` to the configuration and
 installing the Quill App on it, then watching its pull requests.
@@ -537,7 +560,7 @@ installing the Quill App on it, then watching its pull requests.
 - **WHEN** the reviewer image runs for a pull request on `plume-works/images`
 - **THEN** a review by `plume-works-quill[bot]` names the head commit
 - **Checked at ship:**
-  `docs/plans/20261122-quill-as-a-service.md#task-20-onboard-plume-worksimages`
+  `docs/plans/20261122-quill-as-a-service.md#task-22-onboard-plume-worksimages`
 
 ## Verification
 
@@ -555,6 +578,8 @@ uv run --frozen pytest
 - `merge_group` events; the service checks pull request heads only.
 - Comment and mention triggers, and reviews on each push.
 - Keeping review transcripts beyond the container's lifetime.
+- An automated test that runs a live review; `scripts/review-locally.ts` runs one
+  by hand.
 - Pull requests from forks.
 - Moving an inline comment GitHub cannot place into a separate comment; a
   review GitHub refuses fails.

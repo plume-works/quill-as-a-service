@@ -13,3 +13,18 @@ on the reviewed commit. Each review reports a `Quill Review` check run.
 - [docs/deploy.md](docs/deploy.md): deploying and operating the service.
 - [docs/plans/](docs/plans/): the plans of the work on the service.
 - [docs/adrs/](docs/adrs/): the decisions the service follows.
+
+## Trying a review locally
+
+`scripts/review-locally.ts` runs one live review on this machine's Docker engine, the way the
+service runs it, and prints the review the reviewer wrote instead of posting it:
+
+```bash
+export QUILL_CLAUDE_CODE_OAUTH_TOKEN=...   # from `claude setup-token`
+export GH_TOKEN=...                        # read-only: Contents and Pull requests
+bun scripts/review-locally.ts plume-works/images 42
+```
+
+It builds the reviewer image unless `--image <ref>` names one, keeps the reviewer container
+(`docker logs <container>` shows the transcript), and exits non-zero when the result is
+unusable or a comment is off the pull request's diff.
