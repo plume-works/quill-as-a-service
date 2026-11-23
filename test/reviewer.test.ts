@@ -105,6 +105,13 @@ describe('reviewer/review.sh', () => {
     expect(calls).toContain('--output-format stream-json');
   });
 
+  test("loads no settings, hooks, memory, skills or MCP servers from the pull request's checkout", () => {
+    review({ output: assistantSays('Review posted.') });
+    const args = readFileSync(join(scratch, 'calls'), 'utf8');
+    expect(args).toContain('--setting-sources user');
+    expect(args).toContain('--strict-mcp-config');
+  });
+
   test('exits non-zero when claude fails', () => {
     expect(review({ exit: 3 }).exitCode).toBe(3);
   });
