@@ -207,6 +207,8 @@ describe('a review reports a Quill Review check run', () => {
       .map((call) => (call.body?.output as { summary: string }).summary);
     expect(summaries).toEqual([PUSHED_SUMMARY, PUSHED_SUMMARY]);
     expect(PUSHED_SUMMARY).toContain(REQUEST_LABEL);
+    // A cancelled review leaves the label on, and adding a present label sends no event.
+    expect(PUSHED_SUMMARY).toContain('remove and re-add');
     expect(labelRemovals(github.calls)).toHaveLength(0);
   });
 

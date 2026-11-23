@@ -21,10 +21,10 @@ const SUMMARIES: Record<ContainerOutcome, string> = {
   cancelled: 'A newer review of this pull request replaced this one.',
 };
 
-const RERUN_HINT = `Remove and re-add the \`${REQUEST_LABEL}\` label to run it again.`;
+const RERUN_HINT = `Add the \`${REQUEST_LABEL}\` label to run it again, or remove and re-add it if it is already on.`;
 export const STOPPED_SUMMARY = `The Quill service stopped before the review finished. ${RERUN_HINT}`;
 export const RESTARTED_SUMMARY = `The Quill service restarted before the review finished. ${RERUN_HINT}`;
-export const PUSHED_SUMMARY = `A push moved the head before the review finished. Add the \`${REQUEST_LABEL}\` label to review the new head.`;
+export const PUSHED_SUMMARY = `A push moved the head before the review finished. ${RERUN_HINT}`;
 export const PUSHED_DISMISSAL = 'A push moved the head before the Quill review finished.';
 
 const CANCELLED_SUMMARIES: Record<CancelReason, string> = {
