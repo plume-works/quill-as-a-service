@@ -2,6 +2,16 @@
   "enabledPlugins": {
     "agentdev@agent-devcontainer": true
   },
+  "worktree": {
+    "baseRef": "head"
+  },
+  "disableArtifact": true,
+  "disableClaudeAiConnectors": true,
+  "autoMemoryEnabled": false,
+  "includeGitInstructions": false,
+  "disableBundledSkills": true,
+  "disableRemoteControl": true,
+  "disableWorkflows": true,
   "permissions": {
     "defaultMode": "bypassPermissions",
     "deny": [
@@ -29,7 +39,18 @@
       "Bash(sleep*)",
       "Bash(gh run watch*)",
       "Bash(gh pr checks *--watch*)",
-      "Monitor"
+      "Monitor",
+      "EnterPlanMode",
+      "ExitPlanMode",
+      "DesignSync",
+      "NotebookEdit",
+      "ReportFindings",
+      "AskUserQuestion",
+      "RemoteTrigger",
+      "ScheduleWakeup",
+      "CronCreate",
+      "CronDelete",
+      "CronList"
     ]
   }
 }

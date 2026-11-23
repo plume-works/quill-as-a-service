@@ -125,7 +125,7 @@ def end(process: subprocess.Popen[bytes]) -> None:
 def run_claude(prompt: str, cwd: str) -> tuple[int, bool]:
     """Run Claude headless in `cwd`, echoing its stream; return its status and the spend limit."""
     # The checkout is the author's code: its settings, hooks, CLAUDE.md, skills and MCP servers
-    # would run with both tokens, so Claude loads only the image's user settings.
+    # would run with both tokens, so Claude loads only the image's managed and user settings.
     command = ["claude", "-p", prompt, "--setting-sources", "user", "--strict-mcp-config"]
     command += ["--output-format", "stream-json", "--verbose"]
     process = subprocess.Popen(command, cwd=cwd, stdout=subprocess.PIPE)
