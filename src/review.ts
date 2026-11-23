@@ -90,7 +90,7 @@ export class Review implements Job {
     return this.finish('cancelled', reason);
   }
 
-  /** agent-devcontainer ADR-0103 ("A review starts on open or on request"): a new review withdraws Quill's approval; a change request stays. */
+  /** ADR-0002 ("A review starts on open or on request"): a new review withdraws Quill's approval; a change request stays. */
   private async dismissApprovals(github: GitHub, message: string): Promise<void> {
     const reviews = await github.paginate<PullRequestReview>(
       `${this.repo}/pulls/${this.number}/reviews?per_page=100`,

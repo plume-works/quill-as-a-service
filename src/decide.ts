@@ -20,7 +20,7 @@ export const needsSenderPermission = (event: PullRequestEvent): boolean =>
 const hasLabel = (event: PullRequestEvent, name: string): boolean =>
   event.pull_request.labels.some((label) => label.name === name);
 
-/** Decide whether this event queues a review of the pull request's head (agent-devcontainer ADR-0103, "A review starts on open or on request"). */
+/** Decide whether this event queues a review of the pull request's head (ADR-0002, "A review starts on open or on request"). */
 export function wantsReview({ event, paused, senderPermission }: Decision): boolean {
   const pullRequest = event.pull_request;
   if (

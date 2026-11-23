@@ -33,7 +33,7 @@ function commitFailure(commit: Commit, login: string): string {
 }
 
 /**
- * Return why the trusted bot `login` gets no approval, or '' to approve (agent-devcontainer ADR-0102, "The required approval is the only gate of the AI review").
+ * Return why the trusted bot `login` gets no approval, or '' to approve (ADR-0001, "The required approval is the only gate of the AI review").
  * `activities` starts with the newest; only those since the branch's latest creation count.
  */
 export function botApprovalFailure(login: string, activities: Activity[], commits: Commit[]): string {
