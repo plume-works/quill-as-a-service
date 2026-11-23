@@ -23,9 +23,13 @@ The repository builds two images.
 - The **reviewer image**, `FROM ghcr.io/plume-works/core`, installs the
   `agentdev` plugin of `plume-works/agent-devcontainer` at a pinned commit, and
   the reviewer settings. Its entry command checks out one head commit and runs
-  Claude Code headless with the review prompt. `pr-review` writes the review —
-  its event, its body, and its inline comments — to `/review/result.json` in
-  the container and posts nothing. The entry command exits non-zero when Claude
+  Claude Code headless with the review prompt. The image's `quill-review`
+  skill, a copy of agent-devcontainer's `pr-review` stripped to what Quill
+  needs, writes the review — its event, its body, and its inline comments — to
+  `/review/result.json` in the container and posts nothing. A skill Quill
+  changes is copied into `reviewer/skills/` as-is first, with the
+  agent-devcontainer commit it came from recorded, so it can be diffed with its
+  source; the rest of the `agentdev` plugin is used as installed. The entry command exits non-zero when Claude
   fails or hits the spend limit.
 - The **service image**, `FROM ghcr.io/plume-works/core-systemd`, runs under
   sysbox behind the reverse proxy of agent-devcontainer's
@@ -79,8 +83,8 @@ Assumptions: the check run is named `Quill Review`; a review container is
 stopped after 30 minutes, as the workflow's `timeout-minutes: 30`; the review
 prompt is the one agent-devcontainer's
 `.github/workflows/ai-responder.yml#jobs.preflight` builds in
-its "Determine agent prompts" step, asking `pr-review` for its result file
-instead of a posted review; `/review/result.json` holds one JSON object,
+its "Determine agent prompts" step, naming `quill-review` and its result
+file; `/review/result.json` holds one JSON object,
 `{"event": "APPROVE" | "REQUEST_CHANGES" | "COMMENT", "body": "...",
 "comments": [{"path": "...", "line": 1, "side": "RIGHT", "body": "..."}]}`, the
 fields of GitHub's create-review request.
@@ -274,25 +278,28 @@ fields of GitHub's create-review request.
 - [x] `renovate.json` has rules that match the `core` and `core-systemd` digests
   and the `agent-devcontainer` commit pin.
 
-### Task 14: Write the review to a file in pr-review
+### Task 14: Adapt pr-review as quill-review
 
-**Closed by:** the agent-devcontainer pull request that adds the mode merging.
+**Files:** Create: `reviewer/skills/README.md`,
+`reviewer/skills/quill-review/SKILL.md`
 
-- [ ] `agentdev:pr-review`, asked for a result file, writes its event, body, and
-  inline comments to that file in the shape `## Approach` gives and posts no
-  review or comment.
+- [x] `reviewer/skills/README.md` names the agent-devcontainer commit that
+  `quill-review` was copied from, and a commit holds that copy unchanged.
+- [x] `reviewer/skills/quill-review/SKILL.md` writes its event, body, and inline
+  comments to the result file the prompt names, in the shape `## Approach`
+  gives, and posts nothing to GitHub.
 
 ### Task 15: Have the reviewer write its result
 
 **Files:** Modify: `reviewer/Dockerfile`, `reviewer/review.py`,
 `tests/test_review.py`
 
-- [ ] `reviewer/Dockerfile` pins an `agent-devcontainer` commit that has Task
-  14's mode.
+- [ ] `reviewer/Dockerfile` installs `reviewer/skills/quill-review` as a user
+  skill of the user Claude runs as.
 - [ ] `reviewer/Dockerfile` creates `/review`, writable by the user Claude runs
   as.
-- [ ] The prompt `reviewer/review.py` gives Claude asks `agentdev:pr-review` for
-  `/review/result.json` and for no posted review;
+- [ ] The prompt `reviewer/review.py` gives Claude asks `quill-review` for
+  `/review/result.json`;
   `uv run pytest tests/test_review.py` passes with a stubbed `claude` that
   records its prompt.
 
@@ -483,8 +490,8 @@ installing the Quill App on it, then watching its pull requests.
 
 ### Scenario: The reviewer refuses to review without its catalog
 
-- **WHEN** the `agentdev` plugin, and with it `agentdev:pr-review`, is not
-  available in the reviewer container
+- **WHEN** the `agentdev` plugin, and with it the skills `quill-review` calls,
+  is not available in the reviewer container
 - **THEN** `reviewer/review.py` exits non-zero before Claude reviews, so the
   service posts no review and the check run fails
 - **Test:**
@@ -551,6 +558,8 @@ uv run --frozen pytest
 - Pull requests from forks.
 - Moving an inline comment GitHub cannot place into a separate comment; a
   review GitHub refuses fails.
+- Changes to agent-devcontainer, including folding `quill-review` back into
+  `pr-review`; they follow once this plan's pull request merges.
 
 ## Key references
 
@@ -562,6 +571,8 @@ In this repository:
 - `src/reviewer.ts::REVIEWER_PERMISSIONS` — the reviewer token's permissions.
 - `src/reviewer.ts::runContainer` — where the result is copied out after exit 0.
 - `reviewer/review.py::PROMPT` — the review prompt.
+- `reviewer/skills/quill-review/SKILL.md#steps` › "Write the result" — the
+  result file the service reads.
 
 In agent-devcontainer:
 
@@ -580,7 +591,5 @@ In agent-devcontainer:
   the tools the reviewer settings deny.
 - `.github/actions/run-claude-responder/action.yml` › "Fail on Claude usage
   limit" — the spend-limit message the reviewer detects.
-- `.agents/plugins/agentdev/skills/pr-review/SKILL.md#fallback-single-call-script`
-  — the summary and comments files that Task 14's result file carries.
 - `docker/deploy/README.md#1-create-the-proxy-network` — the reverse-proxy
   pattern the deployment follows.
