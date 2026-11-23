@@ -6,5 +6,6 @@ and runs each review in a reviewer container that checks out the head and runs C
 with the `agentdev:pr-review` skill. Each review reports a `Quill Review` check run.
 
 - `src/`: the Bun service; `test/`: its tests (`bun test`).
-- `reviewer/`: the reviewer image. `service/`: the service image, run under sysbox.
+- `reviewer/`: the reviewer image; `tests/`: its entrypoint's tests (`uv run pytest`).
+- `service/`: the service image, run under sysbox.
 - [docs/deploy.md](docs/deploy.md): deploying and operating the service.

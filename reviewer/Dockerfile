@@ -9,7 +9,7 @@ RUN git init -q /opt/agent-devcontainer \
     https://github.com/plume-works/agent-devcontainer.git "${AGENTDEV_COMMIT}" \
   && git -C /opt/agent-devcontainer checkout -q --detach FETCH_HEAD
 
-COPY reviewer/review.sh /usr/local/bin/review
+COPY reviewer/review.py /usr/local/bin/review
 
 USER dev
 WORKDIR /home/dev
