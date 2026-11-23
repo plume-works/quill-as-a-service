@@ -26,8 +26,8 @@ jobs:
       - run: bun test
       - uses: astral-sh/setup-uv@v10.4.0
       - run: uv run --frozen pytest
-      - run: uvx ruff check
-      - run: uvx ruff format --check
+      - run: uv run --frozen ruff check
+      - run: uv run --frozen ruff format --check
 
   images:
     needs: test
