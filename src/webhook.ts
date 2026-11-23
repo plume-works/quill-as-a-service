@@ -23,7 +23,7 @@ export interface PullRequestEvent {
 export interface WebhookOptions {
   secret: string;
   config: () => Config;
-  onPullRequest: (event: PullRequestEvent) => void;
+  onPullRequest: (event: PullRequestEvent, config: Config) => void;
 }
 
 /** Return whether `signature` is GitHub's X-Hub-Signature-256 of `body` under `secret`. */
@@ -43,9 +43,10 @@ export async function handleWebhook(request: Request, options: WebhookOptions): 
     return new Response('ignored: not a pull_request event\n', { status: 200 });
   }
   const event = JSON.parse(body) as PullRequestEvent;
-  if (!options.config().repositories.includes(event.repository.full_name)) {
+  const config = options.config();
+  if (!config.repositories.includes(event.repository.full_name)) {
     return new Response('ignored: repository not configured\n', { status: 200 });
   }
-  options.onPullRequest(event);
+  options.onPullRequest(event, config);
   return new Response('accepted\n', { status: 202 });
 }
