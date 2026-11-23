@@ -5,6 +5,7 @@ import { type App, GitHub, installationToken } from './github';
 import { ReviewQueue } from './queue';
 import { Review } from './review';
 import { reviewerToken, runContainer } from './reviewer';
+import { PerKey } from './serial';
 import { handleWebhook, type PullRequestEvent } from './webhook';
 
 const required = (name: string): string => {
@@ -25,13 +26,16 @@ const app: App = {
   privateKey: required('QUILL_APP_PRIVATE_KEY').replaceAll('\\n', '\n'),
 };
 const queue = new ReviewQueue(() => loadConfig(configPath).maxConcurrentReviews);
+// Deliveries run at once; an approval must not land after a later delivery checked the reviews.
+const trustedBotHandling = new PerKey();
 
 async function onPullRequest(event: PullRequestEvent, config: Config): Promise<void> {
   const where = `${event.repository.full_name}#${event.pull_request.number}`;
   const github = async () =>
     new GitHub(await installationToken(app, event.installation.id, [event.repository.name]));
   if (isTrustedBotPullRequest(event, config.trustedBots)) {
-    console.log(`${where}: trusted bot, ${await approveTrustedBot(event, await github())}`);
+    const result = await trustedBotHandling.run(where, async () => approveTrustedBot(event, await github()));
+    console.log(`${where}: trusted bot, ${result}`);
     return;
   }
   let senderPermission: string | undefined;

@@ -95,6 +95,8 @@ export async function approveTrustedBot(event: PullRequestEvent, github: GitHub)
   }
   await github.request('POST', `${pulls}/reviews`, {
     event: 'APPROVE',
+    // Bind the approval to the head that was checked, never to a later push.
+    commit_id: event.pull_request.head.sha,
     body: `AI review skipped: this pull request is authored by ${login}, a trusted bot. Approving on its behalf.`,
   });
   return 'approved';

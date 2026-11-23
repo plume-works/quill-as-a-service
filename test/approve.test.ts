@@ -112,7 +112,7 @@ describe('the approval on GitHub', () => {
       {
         method: 'POST',
         path: '/repos/plume-works/images/pulls/9/reviews',
-        body: expect.objectContaining({ event: 'APPROVE' }),
+        body: expect.objectContaining({ event: 'APPROVE', commit_id: SHA }),
       },
     ]);
 
