@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { createVerify, generateKeyPairSync } from 'node:crypto';
 import { REQUEST_LABEL, wantsReview } from '../src/decide';
-import { type Job, ReviewQueue } from '../src/queue';
+import { type CancelReason, type Job, ReviewQueue } from '../src/queue';
 import {
   type ContainerOutcome,
   type Docker,
@@ -19,6 +19,7 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 function fakeJob(key: string, events: string[], name = key) {
   let finish!: () => void;
   let signal: AbortSignal | undefined;
+  let cancelReason: CancelReason | undefined;
   const job: Job = {
     key,
     async queued() {
@@ -38,11 +39,18 @@ function fakeJob(key: string, events: string[], name = key) {
         });
       });
     },
-    async cancel() {
+    async cancel(reason) {
+      cancelReason = reason;
       events.push(`cancel waiting ${name}`);
     },
   };
-  return { job, finish: () => finish(), aborted: () => signal?.aborted ?? false };
+  return {
+    job,
+    finish: () => finish(),
+    aborted: () => signal?.aborted ?? false,
+    abortReason: () => signal?.reason,
+    cancelReason: () => cancelReason,
+  };
 }
 
 const REPOSITORY = 'plume-works/images';
@@ -146,6 +154,60 @@ describe('the review queue', () => {
     await queue.enqueue(fakeJob('pr-7', events, 'head-2').job);
     expect(events).toContain('cancel waiting head-1');
     expect(events.at(-1)).toBe('queued head-2');
+  });
+
+  test('a shutdown cancels the waiting reviews and waits for the running ones to stop', async () => {
+    const events: string[] = [];
+    const queue = new ReviewQueue(() => 1);
+    let abortReason: unknown;
+    const running: Job = {
+      key: 'pr-1',
+      async queued() {},
+      run: (signal) =>
+        new Promise<void>((resolve) =>
+          signal.addEventListener('abort', () => {
+            abortReason = signal.reason;
+            setTimeout(() => {
+              events.push('stopped pr-1');
+              resolve();
+            }, 5);
+          }),
+        ),
+      async cancel() {},
+    };
+    const waiting = fakeJob('pr-2', events);
+    await queue.enqueue(running);
+    await queue.enqueue(waiting.job);
+    await queue.shutdown();
+    expect(abortReason).toBe('shutdown');
+    expect(events).toContain('stopped pr-1');
+    expect(waiting.cancelReason()).toBe('shutdown');
+    expect(events).not.toContain('start pr-2');
+    expect(queue.size).toEqual({ running: 0, waiting: 0 });
+  });
+
+  test('a review replaced by a newer one is cancelled as replaced', async () => {
+    const events: string[] = [];
+    const roomy = new ReviewQueue(() => 5);
+    const running = fakeJob('pr-7', events);
+    await roomy.enqueue(running.job);
+    await roomy.enqueue(fakeJob('pr-7', events).job);
+    expect(running.abortReason()).toBe('replaced');
+
+    const full = new ReviewQueue(() => 1);
+    await full.enqueue(fakeJob('pr-1', events).job);
+    const waiting = fakeJob('pr-7', events);
+    await full.enqueue(waiting.job);
+    await full.enqueue(fakeJob('pr-7', events).job);
+    expect(waiting.cancelReason()).toBe('replaced');
+  });
+
+  test('a shut-down queue refuses new reviews', async () => {
+    const events: string[] = [];
+    const queue = new ReviewQueue(() => 5);
+    await queue.shutdown();
+    await expect(queue.enqueue(fakeJob('pr-1', events).job)).rejects.toThrow('shut down');
+    expect(events).toEqual([]);
   });
 });
 

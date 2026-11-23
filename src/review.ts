@@ -1,6 +1,6 @@
 import { REQUEST_LABEL } from './decide';
 import { GitHub, GitHubError } from './github';
-import type { Job } from './queue';
+import type { CancelReason, Job } from './queue';
 import type { ContainerOutcome } from './reviewer';
 import type { PullRequestEvent } from './webhook';
 
@@ -20,6 +20,10 @@ const SUMMARIES: Record<ContainerOutcome, string> = {
   timeout: 'The review was stopped after 30 minutes.',
   cancelled: 'A newer review of this pull request replaced this one.',
 };
+
+const RERUN_HINT = `Remove and re-add the \`${REQUEST_LABEL}\` label to run it again.`;
+export const STOPPED_SUMMARY = `The Quill service stopped before the review finished. ${RERUN_HINT}`;
+export const RESTARTED_SUMMARY = `The Quill service restarted before the review finished. ${RERUN_HINT}`;
 
 export interface ReviewDeps {
   /** A client for the pull request's repository. */
@@ -71,11 +75,11 @@ export class Review implements Job {
       console.error(`${this.key}: the review failed`, error);
       outcome = signal.aborted ? 'cancelled' : 'failure';
     }
-    await this.finish(outcome);
+    await this.finish(outcome, signal.reason);
   }
 
-  cancel(): Promise<void> {
-    return this.finish('cancelled');
+  cancel(reason: CancelReason = 'replaced'): Promise<void> {
+    return this.finish('cancelled', reason);
   }
 
   /** ADR-0103: a new review withdraws Quill's approval; a change request stays. */
@@ -93,13 +97,14 @@ export class Review implements Job {
     }
   }
 
-  private async finish(outcome: ContainerOutcome): Promise<void> {
+  private async finish(outcome: ContainerOutcome, reason?: CancelReason): Promise<void> {
     const github = await this.deps.github();
+    const stopped = outcome === 'cancelled' && reason === 'shutdown';
     await this.updateCheckRun(github, {
       status: 'completed',
       conclusion: CONCLUSIONS[outcome],
       completed_at: new Date().toISOString(),
-      output: { title: CHECK_NAME, summary: SUMMARIES[outcome] },
+      output: { title: CHECK_NAME, summary: stopped ? STOPPED_SUMMARY : SUMMARIES[outcome] },
     });
     // A cancelled review leaves the label for the review that replaced it.
     if (outcome !== 'cancelled') {

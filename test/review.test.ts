@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { REQUEST_LABEL } from '../src/decide';
 import { GitHub } from '../src/github';
 import { ReviewQueue } from '../src/queue';
-import { CHECK_NAME, QUILL_LOGIN, Review } from '../src/review';
+import { CHECK_NAME, QUILL_LOGIN, Review, STOPPED_SUMMARY } from '../src/review';
 import { type ContainerOutcome, type Docker, REVIEW_TIMEOUT_MS, runContainer, type SetTimer } from '../src/reviewer';
 import type { PullRequestEvent } from '../src/webhook';
 
@@ -170,6 +170,25 @@ describe('a review reports a Quill Review check run', () => {
     await review.queued();
     await review.cancel();
     expect(labelRemovals(waiting.calls)).toHaveLength(0);
+  });
+
+  test('a review stopped by the shutdown completes as cancelled and keeps the label', async () => {
+    const github = fakeGitHub();
+    const queue = new ReviewQueue(() => 1);
+    await queue.enqueue(new Review(event(), { github: github.github, runContainer: hangingContainer().run }));
+    await queue.enqueue(new Review({ ...event(), pull_request: { ...event().pull_request, number: 8 } }, {
+      github: github.github,
+      runContainer: async () => 'success',
+    }));
+    await Bun.sleep(0);
+    await queue.shutdown();
+    expect(github.checkRun()).toEqual(['queued', 'in_progress', 'queued', 'cancelled', 'cancelled']);
+    const summaries = github.calls
+      .filter((call) => call.body?.conclusion === 'cancelled')
+      .map((call) => (call.body?.output as { summary: string }).summary);
+    expect(summaries).toEqual([STOPPED_SUMMARY, STOPPED_SUMMARY]);
+    expect(STOPPED_SUMMARY).toContain(REQUEST_LABEL);
+    expect(labelRemovals(github.calls)).toHaveLength(0);
   });
 
   test('a review without the label on ends cleanly', async () => {

@@ -18,6 +18,9 @@ Environment=QUILL_CONFIG=/etc/quill/config.json
 ExecStart=/usr/local/bin/bun run /opt/quill/src/server.ts
 Restart=always
 RestartSec=5
+# SIGTERM goes to bun only, which cancels the reviews; `docker start --attach` would forward
+# it to the reviewer containers, and a review would end as a failure instead.
+KillMode=mixed
 
 [Install]
 WantedBy=multi-user.target

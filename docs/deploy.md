@@ -135,5 +135,7 @@ docker compose -p quill pull && docker compose -p quill up -d
 ```
 
 To move the reviewer image, set the new digest in `etc/service.env` and run
-`docker exec quill-quill-1 systemctl restart quill`. Restarting the service abandons the
-reviews that are running.
+`docker exec quill-quill-1 systemctl restart quill`. Restarting the service cancels the
+reviews that are running or waiting and completes their `Quill Review` checks as cancelled;
+remove and re-add the `request-ai-review` label to run a review again. After a crash, the
+service completes the checks it left open and stops their reviewer containers when it starts.

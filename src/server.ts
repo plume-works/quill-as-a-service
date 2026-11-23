@@ -1,8 +1,9 @@
 import { approveTrustedBot, isTrustedBotPullRequest } from './approve';
 import { type Config, loadConfig } from './config';
 import { needsSenderPermission, wantsReview } from './decide';
-import { type App, GitHub, installationToken } from './github';
+import { type App, appJwt, GitHub, installationToken } from './github';
 import { ReviewQueue } from './queue';
+import { reconcile, reviewerContainers } from './reconcile';
 import { Review } from './review';
 import { reviewerToken, runContainer } from './reviewer';
 import { PerKey } from './serial';
@@ -70,6 +71,16 @@ async function onPullRequest(event: PullRequestEvent, config: Config): Promise<v
   console.log(`${where}: review of ${head.sha} queued after ${event.action}`);
 }
 
+try {
+  await reconcile(loadConfig(configPath).repositories, {
+    appGitHub: () => new GitHub(appJwt(app)),
+    repoGitHub: async (installationId, name) => new GitHub(await installationToken(app, installationId, [name])),
+    docker: reviewerContainers,
+  });
+} catch (error) {
+  console.error('cannot reconcile the reviews of the previous run', error);
+}
+
 const server = Bun.serve({
   port: Number(process.env.PORT ?? 8080),
   fetch(request) {
@@ -89,3 +100,15 @@ const server = Bun.serve({
   },
 });
 console.log(`quill listening on ${server.port}`);
+
+let stopping: Promise<never> | undefined;
+const stop = (signal: string) => {
+  stopping ??= (async () => {
+    console.log(`quill stopping on ${signal}`);
+    void server.stop();
+    await queue.shutdown();
+    process.exit(0);
+  })();
+};
+process.on('SIGTERM', () => stop('SIGTERM'));
+process.on('SIGINT', () => stop('SIGINT'));
