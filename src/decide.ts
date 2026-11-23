@@ -1,3 +1,4 @@
+import type { GitHub } from './github';
 import type { PullRequestEvent } from './webhook';
 
 export const REQUEST_LABEL = 'request-ai-review';
@@ -49,3 +50,12 @@ export function wantsReview({ event, paused, senderPermission }: Decision): bool
 /** Decide whether this event cancels the pull request's review: a push that queues none leaves it on an old head. */
 export const cancelsReview = (decision: Decision): boolean =>
   decision.event.action === 'synchronize' && !wantsReview(decision);
+
+/** Return whether the event's head is still the pull request's head; a newer delivery carries a moved one. */
+export async function headIsCurrent(event: PullRequestEvent, github: GitHub): Promise<boolean> {
+  const { head } = await github.request<{ head: { sha: string } }>(
+    'GET',
+    `/repos/${event.repository.full_name}/pulls/${event.pull_request.number}`,
+  );
+  return head.sha === event.pull_request.head.sha;
+}

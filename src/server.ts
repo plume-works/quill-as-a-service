@@ -1,6 +1,6 @@
 import { approveTrustedBot, isTrustedBotPullRequest } from './approve';
 import { type Config, loadConfig } from './config';
-import { cancelsReview, needsSenderPermission, wantsReview } from './decide';
+import { cancelsReview, headIsCurrent, needsSenderPermission, wantsReview } from './decide';
 import { type App, appJwt, GitHub, installationToken } from './github';
 import { ReviewQueue } from './queue';
 import { reconcile, reviewerContainers } from './reconcile';
@@ -27,15 +27,20 @@ const app: App = {
   privateKey: required('QUILL_APP_PRIVATE_KEY').replaceAll('\\n', '\n'),
 };
 const queue = new ReviewQueue(() => loadConfig(configPath).maxConcurrentReviews);
-// Deliveries run at once; an approval must not land after a later delivery checked the reviews.
-const trustedBotHandling = new PerKey();
+// Deliveries of a pull request run in arrival order, so an older head never replaces a newer one.
+const pullRequestDeliveries = new PerKey();
 
-async function onPullRequest(event: PullRequestEvent, config: Config): Promise<void> {
+const onPullRequest = (event: PullRequestEvent, config: Config): Promise<void> =>
+  pullRequestDeliveries.run(`${event.repository.full_name}#${event.pull_request.number}`, () =>
+    handlePullRequest(event, config),
+  );
+
+async function handlePullRequest(event: PullRequestEvent, config: Config): Promise<void> {
   const where = `${event.repository.full_name}#${event.pull_request.number}`;
   const github = async () =>
     new GitHub(await installationToken(app, event.installation.id, [event.repository.name]));
   if (isTrustedBotPullRequest(event, config.trustedBots)) {
-    const result = await trustedBotHandling.run(where, async () => approveTrustedBot(event, await github()));
+    const result = await approveTrustedBot(event, await github());
     console.log(`${where}: trusted bot, ${result}`);
     return;
   }
@@ -56,6 +61,10 @@ async function onPullRequest(event: PullRequestEvent, config: Config): Promise<v
     return;
   }
   const { head, number } = event.pull_request;
+  if (!(await headIsCurrent(event, await github()))) {
+    console.log(`${where}: ${head.sha} is no longer the head, skipping the review after ${event.action}`);
+    return;
+  }
   const review = new Review(event, {
     github,
     runContainer: async (signal) =>

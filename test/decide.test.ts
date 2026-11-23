@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { BLOCK_LABEL, cancelsReview, REQUEST_LABEL, wantsReview } from '../src/decide';
+import { BLOCK_LABEL, cancelsReview, headIsCurrent, REQUEST_LABEL, wantsReview } from '../src/decide';
+import { GitHub } from '../src/github';
 import type { PullRequestEvent } from '../src/webhook';
 
 const REPOSITORY = 'plume-works/images';
@@ -105,5 +106,28 @@ describe('which events cancel a review', () => {
     for (const action of ['opened', 'edited', 'labeled', 'unlabeled', 'closed']) {
       expect(cancels({ action })).toBe(false);
     }
+  });
+});
+
+describe('a review runs on the current head only', () => {
+  /** A GitHub whose pull request 7 has head `sha`, recording the paths it is asked for. */
+  function pullRequestAt(sha: string) {
+    const paths: string[] = [];
+    const github = new GitHub('ghs_service', async (url) => {
+      paths.push(new URL(url).pathname);
+      return Response.json({ head: { sha } });
+    });
+    return { github, paths };
+  }
+
+  test('a delivery of the current head reviews it', async () => {
+    const { github, paths } = pullRequestAt('a'.repeat(40));
+    expect(await headIsCurrent(event({ action: 'labeled' }), github)).toBe(true);
+    expect(paths).toEqual([`/repos/${REPOSITORY}/pulls/7`]);
+  });
+
+  test('a delivery of a head a push has moved reviews nothing', async () => {
+    const { github } = pullRequestAt('b'.repeat(40));
+    expect(await headIsCurrent(event({ action: 'labeled' }), github)).toBe(false);
   });
 });
