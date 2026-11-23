@@ -1,3 +1,5 @@
+import { DEFAULT_MAX_CONCURRENT_REVIEWS } from './config';
+
 /** Why a job ends early: a newer job of its key replaced it, a push moved its head, or the queue shut down. */
 export type CancelReason = 'replaced' | 'pushed' | 'shutdown';
 
@@ -25,6 +27,7 @@ export class ReviewQueue {
   private readonly running = new Map<string, Running>();
   private readonly placing = new Map<string, Promise<void>>();
   private closed = false;
+  private lastMax = DEFAULT_MAX_CONCURRENT_REVIEWS;
 
   constructor(private readonly max: () => number) {}
 
@@ -84,8 +87,19 @@ export class ReviewQueue {
     this.pump();
   }
 
+  /** Read `max()`, keeping the last good value while it throws, as on an invalid config edit. */
+  private limit(): number {
+    try {
+      this.lastMax = this.max();
+    } catch (error) {
+      console.error(`cannot read the review limit, keeping ${this.lastMax}:`, error);
+    }
+    return this.lastMax;
+  }
+
   private pump(): void {
-    while (this.running.size < this.max() && this.waiting.length > 0) {
+    const max = this.limit();
+    while (this.running.size < max && this.waiting.length > 0) {
       const job = this.waiting.shift()!;
       const controller = new AbortController();
       const done = job

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { createVerify, generateKeyPairSync } from 'node:crypto';
+import { DEFAULT_MAX_CONCURRENT_REVIEWS } from '../src/config';
 import { REQUEST_LABEL, wantsReview } from '../src/decide';
 import { type CancelReason, type Job, ReviewQueue } from '../src/queue';
 import {
@@ -234,6 +235,60 @@ describe('the review queue', () => {
     await placed;
     expect(placing.abortReason()).toBe('pushed');
     expect(queue.size).toEqual({ running: 0, waiting: 0 });
+  });
+
+  test('an unreadable maximum before any good read uses the default', async () => {
+    const events: string[] = [];
+    const queue = new ReviewQueue(() => {
+      throw new Error('config: maxConcurrentReviews must be a positive integer');
+    });
+    for (let pr = 1; pr <= DEFAULT_MAX_CONCURRENT_REVIEWS + 1; pr++) {
+      await queue.enqueue(fakeJob(`pr-${pr}`, events).job);
+    }
+    expect(queue.size).toEqual({ running: DEFAULT_MAX_CONCURRENT_REVIEWS, waiting: 1 });
+  });
+
+  test('an unreadable maximum keeps the last good one', async () => {
+    const events: string[] = [];
+    let broken = false;
+    const queue = new ReviewQueue(() => {
+      if (broken) {
+        throw new SyntaxError('JSON Parse error');
+      }
+      return 1;
+    });
+    await queue.enqueue(fakeJob('pr-1', events).job);
+    broken = true;
+    await queue.enqueue(fakeJob('pr-2', events).job);
+    expect(queue.size).toEqual({ running: 1, waiting: 1 });
+  });
+
+  test('a review ending while the maximum is unreadable starts the next one', async () => {
+    const rejections: unknown[] = [];
+    const onRejection = (reason: unknown) => rejections.push(reason);
+    process.on('unhandledRejection', onRejection);
+    try {
+      const events: string[] = [];
+      let broken = false;
+      const queue = new ReviewQueue(() => {
+        if (broken) {
+          throw new SyntaxError('JSON Parse error');
+        }
+        return 1;
+      });
+      const first = fakeJob('pr-1', events);
+      await queue.enqueue(first.job);
+      await queue.enqueue(fakeJob('pr-2', events).job);
+      broken = true;
+      first.finish();
+      await settle();
+      expect(events).toContain('start pr-2');
+      await queue.shutdown();
+      expect(queue.size).toEqual({ running: 0, waiting: 0 });
+      expect(rejections).toEqual([]);
+    } finally {
+      process.off('unhandledRejection', onRejection);
+    }
   });
 
   test('a shut-down queue refuses new reviews', async () => {
