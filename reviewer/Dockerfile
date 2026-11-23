@@ -10,11 +10,14 @@ RUN git init -q /opt/agent-devcontainer \
   && git -C /opt/agent-devcontainer checkout -q --detach FETCH_HEAD
 
 COPY reviewer/review.py /usr/local/bin/review
+# The review's result, which the service copies out of the stopped container.
+RUN install -d -o dev -g dev /review
 
 USER dev
 WORKDIR /home/dev
 RUN claude plugin marketplace add /opt/agent-devcontainer \
   && claude plugin install agentdev@agent-devcontainer --scope user
 COPY --chown=dev:dev reviewer/settings.json /home/dev/.claude/settings.json
+COPY --chown=dev:dev reviewer/skills/quill-review /home/dev/.claude/skills/quill-review
 
 ENTRYPOINT ["/usr/local/bin/review"]

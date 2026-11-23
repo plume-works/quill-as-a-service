@@ -294,11 +294,11 @@ fields of GitHub's create-review request.
 **Files:** Modify: `reviewer/Dockerfile`, `reviewer/review.py`,
 `tests/test_review.py`
 
-- [ ] `reviewer/Dockerfile` installs `reviewer/skills/quill-review` as a user
+- [x] `reviewer/Dockerfile` installs `reviewer/skills/quill-review` as a user
   skill of the user Claude runs as.
-- [ ] `reviewer/Dockerfile` creates `/review`, writable by the user Claude runs
+- [x] `reviewer/Dockerfile` creates `/review`, writable by the user Claude runs
   as.
-- [ ] The prompt `reviewer/review.py` gives Claude asks `quill-review` for
+- [x] The prompt `reviewer/review.py` gives Claude asks `quill-review` for
   `/review/result.json`;
   `uv run pytest tests/test_review.py` passes with a stubbed `claude` that
   records its prompt.
