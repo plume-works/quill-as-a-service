@@ -359,9 +359,9 @@ Modify: `tsconfig.json`, `README.md`
 **Closed by:** a maintainer running `scripts/review-locally.ts` with a Claude
 token and a read-only GitHub token.
 
-- [ ] A live review of a real pull request writes a result
+- [x] A live review of a real pull request writes a result
   `src/review.ts::parseResult` accepts.
-- [ ] Every comment of that result is on a line of the pull request's diff.
+- [x] Every comment of that result is on a line of the pull request's diff.
 
 ### Task 20: Publish the images
 
