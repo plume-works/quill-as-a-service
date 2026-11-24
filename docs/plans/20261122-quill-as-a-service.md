@@ -590,9 +590,9 @@ uv run --frozen pytest
 
 In this repository:
 
-- `src/review.ts::Review.run` — where the service posts the result.
+- `src/review.ts::Review.post` — where the service posts the result.
 - `src/reviewer.ts::REVIEWER_PERMISSIONS` — the reviewer token's permissions.
-- `src/reviewer.ts::runContainer` — where the result is copied out after exit 0.
+- `src/reviewer.ts::readResult` — where the result is copied out after exit 0.
 - `reviewer/review.py::PROMPT` — the review prompt.
 - `reviewer/skills/quill-review/SKILL.md#steps` › "Write the result" — the
   result file the service reads.
