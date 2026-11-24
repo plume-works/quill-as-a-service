@@ -1,0 +1,56 @@
+{
+  "enabledPlugins": {
+    "agentdev@agent-devcontainer": true
+  },
+  "worktree": {
+    "baseRef": "head"
+  },
+  "disableArtifact": true,
+  "disableClaudeAiConnectors": true,
+  "autoMemoryEnabled": false,
+  "includeGitInstructions": false,
+  "disableBundledSkills": true,
+  "disableRemoteControl": true,
+  "disableWorkflows": true,
+  "permissions": {
+    "defaultMode": "auto",
+    "deny": [
+      "Bash(bash *)",
+      "Bash(sh *)",
+      "Bash(zsh *)",
+      "Bash(uv run *)",
+      "Bash(uv sync*)",
+      "Bash(uv pip *)",
+      "Bash(uv tool *)",
+      "Bash(uv build*)",
+      "Bash(uvx *)",
+      "Bash(python -m *)",
+      "Bash(python3 -m *)",
+      "Bash(pytest*)",
+      "Bash(pre-commit *)",
+      "Bash(bun *)",
+      "Bash(bunx *)",
+      "Bash(npm *)",
+      "Bash(npx *)",
+      "Bash(make*)",
+      "Bash(docker *)",
+      "Bash(docker-compose *)",
+      "Bash(devcontainer *)",
+      "Bash(sleep*)",
+      "Bash(gh run watch*)",
+      "Bash(gh pr checks *--watch*)",
+      "Monitor",
+      "EnterPlanMode",
+      "ExitPlanMode",
+      "DesignSync",
+      "NotebookEdit",
+      "ReportFindings",
+      "AskUserQuestion",
+      "RemoteTrigger",
+      "ScheduleWakeup",
+      "CronCreate",
+      "CronDelete",
+      "CronList"
+    ]
+  }
+}
