@@ -13,7 +13,7 @@
   "disableRemoteControl": true,
   "disableWorkflows": true,
   "permissions": {
-    "defaultMode": "bypassPermissions",
+    "defaultMode": "auto",
     "deny": [
       "Bash(bash *)",
       "Bash(sh *)",
