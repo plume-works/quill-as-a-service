@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM ghcr.io/plume-works/core:edge@sha256:0ab686a9f230c26369355a71e00084b8c934fee4629a95b1a9f550a79a7e5c31
+FROM ghcr.io/plume-works/core:edge@sha256:e7816a63fa18d0e0810d7cf1144569df0f668e4928e5157ba427c8761e910bc9
 
 # renovate: datasource=git-refs depName=https://github.com/plume-works/agent-devcontainer currentValue=main
 ARG AGENTDEV_COMMIT=66ec990d1774d659aadebca9fed71ec59b6518a3

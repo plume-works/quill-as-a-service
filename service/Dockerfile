@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Runs under sysbox; the reviewer containers run on its inner engine.
-FROM ghcr.io/plume-works/core-systemd:edge@sha256:f3ee3b4852e22aaac688cbab2efa1b567ec79b0f7389a4c11c488ed9d6c892d4
+FROM ghcr.io/plume-works/core-systemd:edge@sha256:26ddabe6219b6eb93b48ec12a10b73212c04f68c39e069d0d48ebb5fd2527f30
 
 COPY package.json tsconfig.json /opt/quill/
 COPY src /opt/quill/src
