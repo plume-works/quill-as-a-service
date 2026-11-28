@@ -2,7 +2,7 @@
 FROM ghcr.io/plume-works/core:edge@sha256:0ab686a9f230c26369355a71e00084b8c934fee4629a95b1a9f550a79a7e5c31
 
 # renovate: datasource=git-refs depName=https://github.com/plume-works/agent-devcontainer currentValue=main
-ARG AGENTDEV_COMMIT=66ec990d1774d659aadebca9fed71ec59b6518a3
+ARG AGENTDEV_COMMIT=1ce42b33b3b6610d19b07f2faceedcdc55383e56
 
 RUN git init -q /opt/agent-devcontainer \
   && git -C /opt/agent-devcontainer fetch -q --depth 1 \
